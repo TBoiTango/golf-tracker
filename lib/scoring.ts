@@ -1,29 +1,25 @@
 import { HOLES, SLOPE } from './course'
 
-/** Course handicap from handicap index (blue tees, slope 125) */
+export const DEFAULT_PARS      = [5,3,4,5,4,4,4,4,5,4,3,5,4,3,4,5,3,4]
+export const DEFAULT_HANDICAPS = [5,11,1,7,15,13,17,9,3,2,18,8,4,10,14,6,16,12]
+
 export function courseHandicap(handicapIndex: number): number {
   return Math.round(handicapIndex * (SLOPE / 113))
 }
 
-/**
- * Returns an array of 18 stroke allocations (0 or 1) indexed by hole number (1-based).
- * A player with course handicap 9 gets 1 stroke on the 9 hardest holes.
- */
-export function strokesPerHole(handicapIndex: number): Record<number, number> {
+export function strokesPerHole(
+  handicapIndex: number,
+  customHandicaps?: number[]
+): Record<number, number> {
   const ch = courseHandicap(handicapIndex)
+  const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
   const strokes: Record<number, number> = {}
-  for (const { hole, handicap } of HOLES) {
-    strokes[hole] = handicap <= ch ? 1 : 0
-  }
+  handicaps.forEach((hcp, i) => {
+    strokes[i + 1] = hcp <= ch ? 1 : 0
+  })
   return strokes
 }
 
-/** Net score for a single hole */
-export function netScore(gross: number, hole: number, handicapIndex: number): number {
-  return gross - strokesPerHole(handicapIndex)[hole]
-}
-
-/** Score label vs par: -2 "Eagle", -1 "Birdie", 0 "Par", +1 "Bogey", etc */
 export function scoreLabel(score: number, par: number): string {
   const diff = score - par
   if (diff <= -2) return 'Eagle'
@@ -34,18 +30,12 @@ export function scoreLabel(score: number, par: number): string {
   return `+${diff}`
 }
 
-/** Format score relative to par as string: "E", "+3", "-1" */
-export function formatVsPar(totalGross: number, totalPar: number): string {
-  const diff = totalGross - totalPar
+export function formatVsPar(totalNet: number, totalPar: number): string {
+  const diff = totalNet - totalPar
   if (diff === 0) return 'E'
   return diff > 0 ? `+${diff}` : `${diff}`
 }
 
-/**
- * Vegas calculation for one hole.
- * Takes two gross scores per team and returns the 2-digit Vegas number for each.
- * Lower number wins. Returns points won (positive = team1 wins, negative = team2 wins).
- */
 export function vegasHole(
   team1: [number, number],
   team2: [number, number]
@@ -53,14 +43,11 @@ export function vegasHole(
   const toVegas = ([a, b]: [number, number]) => {
     const lo = Math.min(a, b)
     const hi = Math.max(a, b)
-    // Handle double-digit scores (e.g. 10) by concatenating as strings
     return parseInt(`${lo}${hi}`, 10)
   }
-
   const t1Number = toVegas(team1)
   const t2Number = toVegas(team2)
   const diff = t2Number - t1Number
-
   return {
     t1Number,
     t2Number,
