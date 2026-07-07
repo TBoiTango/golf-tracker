@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { strokesPerHole, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
@@ -41,10 +42,19 @@ function VsParBadge({ diff }: { diff: number }) {
 }
 
 export default function LeaderboardPage() {
+  const router = useRouter()
   const [rows, setRows] = useState<any[]>([])
   const [foursomes, setFoursomes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [round, setRound] = useState<any>(null)
+  const [showPicker, setShowPicker] = useState(false)
+  const [players, setPlayers] = useState<any[]>([])
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('golf_player_id')
+    if (saved) setMyPlayerId(saved)
+  }, [])
 
   async function load() {
     const { data: rounds } = await supabase
@@ -56,14 +66,15 @@ export default function LeaderboardPage() {
     const holePars      = r.hole_pars      ?? DEFAULT_PARS
     const holeHandicaps = r.hole_handicaps ?? DEFAULT_HANDICAPS
 
-    const [{ data: players }, { data: scores }, { data: fs }] = await Promise.all([
+    const [{ data: ps }, { data: scores }, { data: fs }] = await Promise.all([
       supabase.from('players').select('*').eq('round_id', r.id),
       supabase.from('scores').select('*'),
       supabase.from('foursomes').select('*').eq('round_id', r.id),
     ])
 
+    setPlayers(ps ?? [])
     setFoursomes(fs ?? [])
-    setRows(buildLeaderboard(players ?? [], scores ?? [], fs ?? [], holePars, holeHandicaps))
+    setRows(buildLeaderboard(ps ?? [], scores ?? [], fs ?? [], holePars, holeHandicaps))
     setLoading(false)
   }
 
@@ -77,11 +88,42 @@ export default function LeaderboardPage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  function pickPlayer(player: any) {
+    localStorage.setItem('golf_player_id', player.id)
+    router.push(`/score/${player.id}`)
+  }
+
   if (loading) return <p className="text-center text-gray-400 mt-12">Loading...</p>
+
   if (!round) return (
     <div className="text-center mt-16 space-y-4">
       <p className="text-gray-400">No round yet.</p>
       <Link href="/setup" className="bg-green-700 px-6 py-3 rounded-lg font-semibold inline-block">Go to Setup</Link>
+    </div>
+  )
+
+  // Name picker modal
+  if (showPicker) return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setShowPicker(false)} className="text-gray-400 text-sm">← Back</button>
+        <h2 className="text-xl font-bold">Who are you?</h2>
+      </div>
+      <p className="text-gray-400 text-sm">Tap your name to go to your score card.</p>
+      <div className="space-y-2">
+        {players
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => pickPlayer(p)}
+              className="w-full bg-gray-900 hover:bg-green-900 rounded-xl px-4 py-4 text-left font-semibold transition"
+            >
+              {p.name}
+              <span className="text-gray-500 text-sm ml-2">Hcp {p.handicap_index}</span>
+            </button>
+          ))}
+      </div>
     </div>
   )
 
@@ -97,6 +139,28 @@ export default function LeaderboardPage() {
         <Link href="/setup" className="text-xs text-green-400 underline">Setup</Link>
       </div>
 
+      {/* Enter My Scores button */}
+      <button
+        onClick={() => {
+          if (myPlayerId && players.find(p => p.id === myPlayerId)) {
+            router.push(`/score/${myPlayerId}`)
+          } else {
+            setShowPicker(true)
+          }
+        }}
+        className="w-full bg-green-700 rounded-xl py-4 font-bold text-lg"
+      >
+        {myPlayerId && players.find(p => p.id === myPlayerId)
+          ? `Enter My Scores (${players.find(p => p.id === myPlayerId)?.name})`
+          : 'Enter My Scores'}
+      </button>
+
+      {myPlayerId && players.find(p => p.id === myPlayerId) && (
+        <button onClick={() => setShowPicker(true)} className="text-xs text-gray-500 underline w-full text-center -mt-3">
+          Not you? Switch player
+        </button>
+      )}
+
       <div className="bg-gray-900 rounded-xl overflow-hidden">
         <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-2 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-800">
           <span>#</span><span>Player</span>
@@ -105,10 +169,13 @@ export default function LeaderboardPage() {
           <span className="text-right">+/-</span>
         </div>
         {rows.map((row: any, i: number) => (
-          <div key={row.player.id} className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0 ${i === 0 && row.holesPlayed > 0 ? 'bg-yellow-950' : ''}`}>
+          <div
+            key={row.player.id}
+            className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0 ${i === 0 && row.holesPlayed > 0 ? 'bg-yellow-950' : ''} ${row.player.id === myPlayerId ? 'ring-1 ring-inset ring-green-700' : ''}`}
+          >
             <span className="text-gray-500 text-sm self-center">{row.holesPlayed > 0 ? i + 1 : '-'}</span>
             <div className="self-center">
-              <p className="font-semibold text-sm">{row.player.name}</p>
+              <p className="font-semibold text-sm">{row.player.name} {row.player.id === myPlayerId ? '👤' : ''}</p>
               <p className="text-xs text-gray-500">Grp {row.foursome?.group_number ?? '?'} · Hcp {row.player.handicap_index}</p>
             </div>
             <span className="text-right text-sm self-center text-gray-400">
