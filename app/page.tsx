@@ -52,6 +52,8 @@ export default function LeaderboardPage() {
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [newHandicap, setNewHandicap] = useState('0')
+  const [newGroup, setNewGroup] = useState('1')
+  const [newTeam, setNewTeam] = useState('1')
   const [registering, setRegistering] = useState(false)
 
   useEffect(() => {
@@ -99,13 +101,15 @@ export default function LeaderboardPage() {
   async function registerPlayer() {
     if (!newName.trim() || !round) return
     setRegistering(true)
-    // Add to roster
     await supabase.from('roster').upsert({ name: newName.trim(), default_handicap: parseFloat(newHandicap) || 0 }, { onConflict: 'name' })
-    // Add to round
+    const groupNum = parseInt(newGroup)
+    const foursome = foursomes.find((f: any) => f.group_number === groupNum)
     const { data: p } = await supabase.from('players').insert({
       round_id: round.id,
       name: newName.trim(),
       handicap_index: parseFloat(newHandicap) || 0,
+      foursome_id: foursome?.id ?? null,
+      vegas_team: parseInt(newTeam),
     }).select().single()
     setRegistering(false)
     if (p) pickPlayer(p)
@@ -154,9 +158,9 @@ export default function LeaderboardPage() {
           onChange={e => setNewName(e.target.value)}
           className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
         />
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <label className="text-xs text-gray-500 block mb-1">Handicap Index</label>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Handicap</label>
             <input
               type="number"
               min="0"
@@ -165,17 +169,40 @@ export default function LeaderboardPage() {
               placeholder="0"
               value={newHandicap}
               onChange={e => setNewHandicap(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
+              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
             />
           </div>
-          <button
-            onClick={registerPlayer}
-            disabled={!newName.trim() || registering}
-            className="bg-green-700 rounded-xl px-6 py-3 font-bold disabled:opacity-50 mt-4"
-          >
-            {registering ? '...' : "I'm In"}
-          </button>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Group</label>
+            <select
+              value={newGroup}
+              onChange={e => setNewGroup(e.target.value)}
+              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+            >
+              {foursomes.map((f: any) => (
+                <option key={f.id} value={f.group_number}>Group {f.group_number}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Vegas Team</label>
+            <select
+              value={newTeam}
+              onChange={e => setNewTeam(e.target.value)}
+              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+            >
+              <option value="1">Team 1</option>
+              <option value="2">Team 2</option>
+            </select>
+          </div>
         </div>
+        <button
+          onClick={registerPlayer}
+          disabled={!newName.trim() || registering}
+          className="w-full bg-green-700 rounded-xl py-3 font-bold disabled:opacity-50"
+        >
+          {registering ? 'Adding...' : "I'm In — Add Me"}
+        </button>
         <p className="text-xs text-gray-600">You'll be added to the round and taken to your score card.</p>
       </div>
     </div>
