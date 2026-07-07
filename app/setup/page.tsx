@@ -22,14 +22,14 @@ export default function SetupPage() {
     const { data: rounds } = await supabase
       .from('rounds').select('*').order('created_at', { ascending: false }).limit(1)
     if (!rounds?.length) return
-    const round = rounds[0]
+    const round = rounds[0] as { id: string }
     setRoundId(round.id)
     const [{ data: p }, { data: f }] = await Promise.all([
       supabase.from('players').select('*').eq('round_id', round.id).order('name'),
       supabase.from('foursomes').select('*').eq('round_id', round.id).order('group_number'),
     ])
-    setPlayers(p ?? [])
-    setFoursomes(f ?? [])
+    setPlayers((p ?? []) as Player[])
+    setFoursomes((f ?? []) as Foursome[])
   }
 
   useEffect(() => { loadRound() }, [])
@@ -47,7 +47,7 @@ export default function SetupPage() {
     await supabase.from('players').insert(playerInserts)
 
     setRoundId(round.id)
-    setFoursomes(fs ?? [])
+    setFoursomes((fs ?? []) as Foursome[])
     await loadRound()
     setSaving(false)
     setStatus('Round initialized!')

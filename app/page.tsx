@@ -65,17 +65,21 @@ export default function LeaderboardPage() {
     const { data: rounds } = await supabase
       .from('rounds').select('*').order('created_at', { ascending: false }).limit(1)
     if (!rounds?.length) { setLoading(false); return }
-    const round = rounds[0]
+    const round = rounds[0] as { id: string }
     setRoundId(round.id)
 
-    const [{ data: players }, { data: scores }, { data: fs }] = await Promise.all([
+    const [{ data: playersRaw }, { data: scoresRaw }, { data: fsRaw }] = await Promise.all([
       supabase.from('players').select('*').eq('round_id', round.id),
       supabase.from('scores').select('*'),
       supabase.from('foursomes').select('*').eq('round_id', round.id),
     ])
 
-    setFoursomes(fs ?? [])
-    setRows(buildLeaderboard(players ?? [], scores ?? [], fs ?? []))
+    const players = (playersRaw ?? []) as Player[]
+    const scores = (scoresRaw ?? []) as Score[]
+    const fs = (fsRaw ?? []) as Foursome[]
+
+    setFoursomes(fs)
+    setRows(buildLeaderboard(players, scores, fs))
     setLoading(false)
   }
 

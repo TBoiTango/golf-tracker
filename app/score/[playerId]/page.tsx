@@ -21,10 +21,10 @@ export default function ScoreEntryPage({ params }: Props) {
         supabase.from('players').select('*').eq('id', playerId).single(),
         supabase.from('scores').select('*').eq('player_id', playerId),
       ])
-      if (p) setPlayer(p)
+      if (p) setPlayer(p as Player)
       if (s) {
         const map: Record<number, number> = {}
-        s.forEach(score => { map[score.hole_number] = score.gross_score })
+        ;(s as Score[]).forEach(score => { map[score.hole_number] = score.gross_score })
         setScores(map)
         // Jump to next unplayed hole
         const nextHole = HOLES.find(h => !map[h.hole])
