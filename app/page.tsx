@@ -50,6 +50,9 @@ export default function LeaderboardPage() {
   const [showPicker, setShowPicker] = useState(false)
   const [players, setPlayers] = useState<any[]>([])
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newHandicap, setNewHandicap] = useState('0')
+  const [registering, setRegistering] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('golf_player_id')
@@ -93,6 +96,21 @@ export default function LeaderboardPage() {
     router.push(`/score/${player.id}`)
   }
 
+  async function registerPlayer() {
+    if (!newName.trim() || !round) return
+    setRegistering(true)
+    // Add to roster
+    await supabase.from('roster').upsert({ name: newName.trim(), default_handicap: parseFloat(newHandicap) || 0 }, { onConflict: 'name' })
+    // Add to round
+    const { data: p } = await supabase.from('players').insert({
+      round_id: round.id,
+      name: newName.trim(),
+      handicap_index: parseFloat(newHandicap) || 0,
+    }).select().single()
+    setRegistering(false)
+    if (p) pickPlayer(p)
+  }
+
   if (loading) return <p className="text-center text-gray-400 mt-12">Loading...</p>
 
   if (!round) return (
@@ -110,6 +128,7 @@ export default function LeaderboardPage() {
         <h2 className="text-xl font-bold">Who are you?</h2>
       </div>
       <p className="text-gray-400 text-sm">Tap your name to go to your score card.</p>
+
       <div className="space-y-2">
         {players
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -123,6 +142,41 @@ export default function LeaderboardPage() {
               <span className="text-gray-500 text-sm ml-2">Hcp {p.handicap_index}</span>
             </button>
           ))}
+      </div>
+
+      {/* Self-registration */}
+      <div className="border-t border-gray-800 pt-4 space-y-3">
+        <p className="text-sm font-semibold text-gray-400">Don't see your name?</p>
+        <input
+          type="text"
+          placeholder="Your name"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
+        />
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 block mb-1">Handicap Index</label>
+            <input
+              type="number"
+              min="0"
+              max="54"
+              step="0.1"
+              placeholder="0"
+              value={newHandicap}
+              onChange={e => setNewHandicap(e.target.value)}
+              className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
+            />
+          </div>
+          <button
+            onClick={registerPlayer}
+            disabled={!newName.trim() || registering}
+            className="bg-green-700 rounded-xl px-6 py-3 font-bold disabled:opacity-50 mt-4"
+          >
+            {registering ? '...' : "I'm In"}
+          </button>
+        </div>
+        <p className="text-xs text-gray-600">You'll be added to the round and taken to your score card.</p>
       </div>
     </div>
   )
