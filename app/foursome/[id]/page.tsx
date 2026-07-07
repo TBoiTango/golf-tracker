@@ -27,15 +27,16 @@ export default function FoursomePage({ params }: Props) {
     if (!fs || !rawPlayers) { setLoading(false); return }
     setFoursome(fs)
 
-    const playerIds = rawPlayers.map((p: { id: string }) => p.id)
+    const playerIds = rawPlayers.map((p: Player) => p.id)
     const { data: rawScores } = await supabase
       .from('scores')
       .select('*')
       .in('player_id', playerIds)
 
-    const enriched: PlayerWithScores[] = rawPlayers.map(p => {
+    const scores = (rawScores ?? []) as Score[]
+    const enriched: PlayerWithScores[] = (rawPlayers as Player[]).map(p => {
       const scoreMap: Record<number, number> = {}
-      rawScores?.filter(s => s.player_id === p.id).forEach(s => { scoreMap[s.hole_number] = s.gross_score })
+      scores.filter(s => s.player_id === p.id).forEach(s => { scoreMap[s.hole_number] = s.gross_score })
       return { ...p, scores: scoreMap }
     })
     setPlayers(enriched)
