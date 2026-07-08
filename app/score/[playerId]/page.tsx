@@ -52,7 +52,7 @@ export default function ScoreEntryPage({ params }: Props) {
         .update({ gross_score: gross, updated_at: new Date().toISOString() })
         .eq('player_id', playerId).eq('hole_number', hole)
     } else {
-      await supabase.from('scores').insert({ player_id: playerId, hole_number: hole, gross_score: gross })
+      await supabase.from('scores').insert({ player_id: playerId, round_id: player.round_id, hole_number: hole, gross_score: gross })
     }
     setScores(prev => ({ ...prev, [hole]: gross }))
     setSaving(null)
