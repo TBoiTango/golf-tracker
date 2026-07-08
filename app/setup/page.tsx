@@ -261,6 +261,9 @@ export default function SetupPage() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between mb-1">
+        <a href="/" className="text-sm text-green-400">← Leaderboard</a>
+      </div>
       <div className="flex border-b border-gray-800">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
