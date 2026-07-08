@@ -79,11 +79,14 @@ export default function LeaderboardPage() {
     const holePars      = r.hole_pars      ?? DEFAULT_PARS
     const holeHandicaps = r.hole_handicaps ?? DEFAULT_HANDICAPS
 
-    const [{ data: ps }, { data: scores }, { data: fs }] = await Promise.all([
+    const [{ data: ps }, { data: fs }] = await Promise.all([
       supabase.from('players').select('*').eq('round_id', r.id),
-      supabase.from('scores').select('*'),
       supabase.from('foursomes').select('*').eq('round_id', r.id),
     ])
+    const playerIds = (ps ?? []).map((p: any) => p.id)
+    const { data: scores } = playerIds.length
+      ? await supabase.from('scores').select('*').in('player_id', playerIds)
+      : { data: [] }
 
     setPlayers(ps ?? [])
     setFoursomes(fs ?? [])

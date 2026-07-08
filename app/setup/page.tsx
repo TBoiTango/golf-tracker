@@ -173,7 +173,9 @@ export default function SetupPage() {
 
   async function resetScores() {
     if (!round || !confirm('Clear all scores for this round?')) return
-    const ids = players.map(p => p.id)
+    // Fetch fresh player IDs directly from DB rather than relying on local state
+    const { data: freshPlayers } = await supabase.from('players').select('id').eq('round_id', round.id)
+    const ids = (freshPlayers ?? []).map((p: any) => p.id)
     if (ids.length) await supabase.from('scores').delete().in('player_id', ids)
     flash('Scores cleared!')
   }
