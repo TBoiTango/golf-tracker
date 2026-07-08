@@ -24,6 +24,7 @@ function buildLeaderboard(players: any[], scores: any[], foursomes: any[], holeP
         grossTotal: gross,
         netTotal: net,
         netVsPar: net - parPlayed,
+        grossVsPar: gross - parPlayed,
         foursome: player.foursome_id ? foursomeMap[player.foursome_id] ?? null : null,
       }
     })
@@ -50,6 +51,7 @@ export default function LeaderboardPage() {
   const [showPicker, setShowPicker] = useState(false)
   const [players, setPlayers] = useState<any[]>([])
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
+  const [showNet, setShowNet] = useState(false)
 
   // Registration fields
   const [newName, setNewName] = useState('')
@@ -420,14 +422,36 @@ export default function LeaderboardPage() {
         </button>
       )}
 
+      {/* Net / Gross toggle */}
+      <div className="flex items-center justify-between -mb-2">
+        <span className="text-sm text-gray-400">Standings</span>
+        <div className="flex bg-gray-800 rounded-lg p-0.5 text-xs font-semibold">
+          <button
+            onClick={() => setShowNet(false)}
+            className={`px-3 py-1.5 rounded-md transition ${!showNet ? 'bg-green-700 text-white' : 'text-gray-400'}`}
+          >Gross</button>
+          <button
+            onClick={() => setShowNet(true)}
+            className={`px-3 py-1.5 rounded-md transition ${showNet ? 'bg-green-700 text-white' : 'text-gray-400'}`}
+          >Net</button>
+        </div>
+      </div>
+
       <div className="bg-gray-900 rounded-xl overflow-hidden">
         <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-2 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-800">
           <span>#</span><span>Player</span>
           <span className="text-right">Thru</span>
-          <span className="text-right">Net</span>
+          <span className="text-right">{showNet ? 'Net' : 'Gross'}</span>
           <span className="text-right">+/-</span>
         </div>
-        {rows.map((row: any, i: number) => (
+        {[...rows]
+          .sort((a, b) => {
+            if (a.holesPlayed === 0 && b.holesPlayed === 0) return 0
+            if (a.holesPlayed === 0) return 1
+            if (b.holesPlayed === 0) return -1
+            return showNet ? a.netVsPar - b.netVsPar : a.grossTotal - b.grossTotal
+          })
+          .map((row: any, i: number) => (
           <div
             key={row.player.id}
             className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0 ${i === 0 && row.holesPlayed > 0 ? 'bg-yellow-950' : ''} ${row.player.id === myPlayerId ? 'ring-1 ring-inset ring-green-700' : ''}`}
@@ -440,9 +464,9 @@ export default function LeaderboardPage() {
             <span className="text-right text-sm self-center text-gray-400">
               {row.holesPlayed === 18 ? 'F' : row.holesPlayed === 0 ? '-' : row.holesPlayed}
             </span>
-            <span className="text-right text-sm self-center">{row.holesPlayed > 0 ? row.netTotal : '-'}</span>
+            <span className="text-right text-sm self-center">{row.holesPlayed > 0 ? (showNet ? row.netTotal : row.grossTotal) : '-'}</span>
             <span className="text-right self-center text-sm">
-              {row.holesPlayed > 0 ? <VsParBadge diff={row.netVsPar} /> : '-'}
+              {row.holesPlayed > 0 ? <VsParBadge diff={showNet ? row.netVsPar : row.grossVsPar} /> : '-'}
             </span>
           </div>
         ))}
