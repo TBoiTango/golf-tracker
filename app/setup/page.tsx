@@ -192,8 +192,16 @@ export default function SetupPage() {
     await loadAll()
   }
 
-  async function removeFromRoster(id: string) {
-    if (!confirm('Remove from roster?')) return
+  async function removeFromRoster(id: string, name: string) {
+    if (!confirm(`Remove ${name} from roster and current round?`)) return
+    // Remove their scores and player record from the active round
+    if (round) {
+      const inRound = players.find(p => p.name === name)
+      if (inRound) {
+        await supabase.from('scores').delete().eq('player_id', inRound.id)
+        await supabase.from('players').delete().eq('id', inRound.id)
+      }
+    }
     await supabase.from('roster').delete().eq('id', id)
     await loadAll()
   }
@@ -356,7 +364,7 @@ export default function SetupPage() {
                     {inRound && (
                       <a href={`/score/${inRound.id}`} target="_blank" className="text-xs text-green-400 underline">Score link</a>
                     )}
-                    <button onClick={() => removeFromRoster(rp.id)} className="text-xs text-red-400">Remove</button>
+                    <button onClick={() => removeFromRoster(rp.id, rp.name)} className="text-xs text-red-400">Remove</button>
                   </div>
                 </div>
 
