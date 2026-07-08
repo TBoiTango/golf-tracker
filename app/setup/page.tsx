@@ -172,6 +172,8 @@ export default function SetupPage() {
 
   async function startRound() {
     if (!round) return
+    // Deactivate all other rounds first so only one is ever live
+    await supabase.from('rounds').update({ status: 'setup' }).neq('id', round.id)
     await supabase.from('rounds').update({ status: 'active' }).eq('id', round.id)
     setRound({ ...round, status: 'active' })
     flash('Round is LIVE!')
