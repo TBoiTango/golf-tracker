@@ -339,67 +339,61 @@ export default function SetupPage() {
       {tab === 'players' && (
         <div className="space-y-3">
           {!round && <p className="text-gray-400 text-sm text-center py-4">Create a round first</p>}
-          <div className="flex gap-2">
-            <input type="text" placeholder="Add player to roster" value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addToRoster()}
-              className="flex-1 bg-gray-800 rounded-lg px-3 py-2 text-sm" />
-            <button onClick={addToRoster} className="bg-green-700 px-4 rounded-lg text-sm font-bold">Add</button>
-          </div>
 
-          {roster.map(rp => {
-            const inRound = players.find(p => p.name === rp.name)
-            return (
-              <div key={rp.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {round && (
-                      <input type="checkbox" checked={!!inRound}
-                        onChange={e => togglePlayer(rp, e.target.checked)}
-                        className="w-5 h-5 accent-green-500" />
-                    )}
-                    <p className="font-bold">{rp.name}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {inRound && (
-                      <a href={`/score/${inRound.id}`} target="_blank" className="text-xs text-green-400 underline">Score link</a>
-                    )}
-                    <button onClick={() => removeFromRoster(rp.id, rp.name)} className="text-xs text-red-400">Remove</button>
-                  </div>
+          {round && players.length === 0 && (
+            <p className="text-gray-500 text-sm text-center py-6">No players in this round yet. Players add themselves via the main link.</p>
+          )}
+
+          {/* Current round players */}
+          {players.map(p => (
+            <div key={p.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="font-bold">{p.name}</p>
+                <div className="flex items-center gap-3">
+                  <a href={`/score/${p.id}`} target="_blank" className="text-xs text-green-400 underline">Score link</a>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Remove ${p.name} from this round?`)) return
+                      await supabase.from('scores').delete().eq('player_id', p.id)
+                      await supabase.from('players').delete().eq('id', p.id)
+                      await supabase.from('roster').delete().eq('name', p.name)
+                      await loadRoundData(round.id)
+                      flash(`${p.name} removed`)
+                    }}
+                    className="text-xs text-red-400"
+                  >Remove</button>
                 </div>
-
-                {inRound && round && (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Handicap</label>
-                      <input type="number" step="0.1" min="0" max="54" defaultValue={inRound.handicap_index}
-                        onBlur={e => savePlayer(inRound.id, { handicap_index: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Group</label>
-                      <select value={inRound.foursome_id ?? ''}
-                        onChange={e => savePlayer(inRound.id, { foursome_id: e.target.value || null })}
-                        className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
-                        <option value="">--</option>
-                        {foursomes.map(f => <option key={f.id} value={f.id}>Group {f.group_number}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Vegas</label>
-                      <select value={inRound.vegas_team ?? ''}
-                        onChange={e => savePlayer(inRound.id, { vegas_team: parseInt(e.target.value) || null })}
-                        className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
-                        <option value="">--</option>
-                        <option value="1">T1</option>
-                        <option value="2">T2</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
               </div>
-            )
-          })}
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Handicap</label>
+                  <input type="number" step="0.1" min="0" max="54" defaultValue={p.handicap_index}
+                    onBlur={e => savePlayer(p.id, { handicap_index: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Group</label>
+                  <select value={p.foursome_id ?? ''}
+                    onChange={e => savePlayer(p.id, { foursome_id: e.target.value || null })}
+                    className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
+                    <option value="">--</option>
+                    {foursomes.map(f => <option key={f.id} value={f.id}>Group {f.group_number}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Vegas Team</label>
+                  <select value={p.vegas_team ?? ''}
+                    onChange={e => savePlayer(p.id, { vegas_team: parseInt(e.target.value) || null })}
+                    className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
+                    <option value="">--</option>
+                    <option value="1">T1</option>
+                    <option value="2">T2</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
