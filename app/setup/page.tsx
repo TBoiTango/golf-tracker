@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
-type Tab = 'round' | 'players' | 'course' | 'history'
+type Tab = 'round' | 'players' | 'groups' | 'course' | 'history'
 
 export default function SetupPage() {
   const [authed, setAuthed]       = useState(false)
@@ -163,8 +163,15 @@ export default function SetupPage() {
     </div>
   )
 
+  async function saveFoursome(foursomeId: string, updates: any) {
+    await supabase.from('foursomes').update(updates).eq('id', foursomeId)
+    setFoursomes(prev => prev.map(f => f.id === foursomeId ? { ...f, ...updates } : f))
+    flash('Group saved!')
+  }
+
   const TABS: { key: Tab; label: string }[] = [
     { key: 'round', label: 'Round' }, { key: 'players', label: 'Players' },
+    { key: 'groups', label: 'Groups' },
     { key: 'course', label: 'Course' }, { key: 'history', label: 'History' },
   ]
 
@@ -313,6 +320,99 @@ export default function SetupPage() {
                       </select>
                     </div>
                   </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* GROUPS TAB */}
+      {tab === 'groups' && (
+        <div className="space-y-4">
+          {!round && <p className="text-gray-400 text-sm text-center py-4">Create a round first</p>}
+          {foursomes.map(f => {
+            const groupPlayers = players.filter(p => p.foursome_id === f.id)
+            const t1 = groupPlayers.filter(p => p.vegas_team === 1)
+            const t2 = groupPlayers.filter(p => p.vegas_team === 2)
+            return (
+              <div key={f.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold">Group {f.group_number}</h3>
+                  <span className="text-xs text-gray-500">{groupPlayers.length}/4 players</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Game Type</label>
+                    <select
+                      value={f.game_type ?? ''}
+                      onChange={e => saveFoursome(f.id, { game_type: e.target.value || null })}
+                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
+                    >
+                      <option value="">Use round default</option>
+                      <option value="vegas">Vegas</option>
+                      <option value="stroke">Stroke Play</option>
+                      <option value="none">No game</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">$/pt</label>
+                    <input
+                      type="number" step="0.5" min="0"
+                      defaultValue={f.stakes ?? round?.stakes ?? 1}
+                      onBlur={e => saveFoursome(f.id, { stakes: parseFloat(e.target.value) || null })}
+                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">CTP $/hole</label>
+                    <input
+                      type="number" step="0.5" min="0"
+                      defaultValue={f.ctp_stakes ?? 1}
+                      onBlur={e => saveFoursome(f.id, { ctp_stakes: parseFloat(e.target.value) || 1 })}
+                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Team view with move controls */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ team: t1, num: 1 }, { team: t2, num: 2 }].map(({ team, num }) => (
+                    <div key={num} className="bg-gray-800 rounded-lg p-3 space-y-2">
+                      <p className="text-xs text-gray-500 uppercase">Team {num} ({team.length}/2)
+                        {team.length > 2 && <span className="text-red-400 ml-1">⚠️ Over limit</span>}
+                      </p>
+                      {team.map(p => (
+                        <div key={p.id} className="flex items-center justify-between">
+                          <p className="text-sm">{p.name}</p>
+                          <button
+                            onClick={() => savePlayer(p.id, { vegas_team: num === 1 ? 2 : 1 })}
+                            className="text-xs text-blue-400 underline"
+                          >
+                            → T{num === 1 ? 2 : 1}
+                          </button>
+                        </div>
+                      ))}
+                      {team.length === 0 && <p className="text-xs text-gray-600">Empty</p>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Players not assigned to a team */}
+                {groupPlayers.filter(p => !p.vegas_team).map(p => (
+                  <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-sm text-yellow-300">⚠️ {p.name} — no team</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => savePlayer(p.id, { vegas_team: 1 })} className="text-xs text-blue-400 underline">T1</button>
+                      <button onClick={() => savePlayer(p.id, { vegas_team: 2 })} className="text-xs text-blue-400 underline">T2</button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Admin override: add player to full group */}
+                {groupPlayers.length >= 4 && (
+                  <p className="text-xs text-orange-400">Group is full. To add another player, go to the Players tab and manually assign them to this group.</p>
                 )}
               </div>
             )

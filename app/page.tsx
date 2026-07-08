@@ -50,11 +50,17 @@ export default function LeaderboardPage() {
   const [showPicker, setShowPicker] = useState(false)
   const [players, setPlayers] = useState<any[]>([])
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
+
+  // Registration fields
   const [newName, setNewName] = useState('')
   const [newHandicap, setNewHandicap] = useState('0')
-  const [newGroup, setNewGroup] = useState('1')
+  const [newGroup, setNewGroup] = useState('')
   const [newTeam, setNewTeam] = useState('1')
+  const [newGameType, setNewGameType] = useState('vegas')
+  const [newStakes, setNewStakes] = useState('1')
+  const [newCtpStakes, setNewCtpStakes] = useState('1')
   const [registering, setRegistering] = useState(false)
+  const [regError, setRegError] = useState('')
 
   useEffect(() => {
     const saved = localStorage.getItem('golf_player_id')
@@ -93,24 +99,79 @@ export default function LeaderboardPage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  // When group selection changes, sync defaults from that group's settings
+  useEffect(() => {
+    if (!newGroup || !round) return
+    const f = foursomes.find(f => f.group_number === parseInt(newGroup))
+    if (!f) return
+    setNewGameType(f.game_type ?? round.game_type ?? 'vegas')
+    setNewStakes(String(f.stakes ?? round.stakes ?? 1))
+    setNewCtpStakes(String(f.ctp_stakes ?? 1))
+    // Auto-select team if one is already full
+    const groupPlayers = players.filter(p => p.foursome_id === f.id)
+    const t1 = groupPlayers.filter(p => p.vegas_team === 1).length
+    const t2 = groupPlayers.filter(p => p.vegas_team === 2).length
+    if (t1 >= 2 && t2 < 2) setNewTeam('2')
+    else if (t2 >= 2 && t1 < 2) setNewTeam('1')
+  }, [newGroup, foursomes, players])
+
   function pickPlayer(player: any) {
     localStorage.setItem('golf_player_id', player.id)
     router.push(`/score/${player.id}`)
   }
 
   async function registerPlayer() {
-    if (!newName.trim() || !round) return
+    if (!newName.trim() || !round || !newGroup) return
+    setRegError('')
+
+    const selectedFoursome = foursomes.find(f => f.group_number === parseInt(newGroup))
+    if (!selectedFoursome) return
+
+    const groupPlayers = players.filter(p => p.foursome_id === selectedFoursome.id)
+    const t1Count = groupPlayers.filter(p => p.vegas_team === 1).length
+    const t2Count = groupPlayers.filter(p => p.vegas_team === 2).length
+
+    // Capacity check
+    if (groupPlayers.length >= 4) {
+      setRegError('This group is full (4 players max). See admin to join.')
+      return
+    }
+
+    // Team balance check
+    const teamNum = parseInt(newTeam)
+    if (teamNum === 1 && t1Count >= 2) {
+      setRegError('Team 1 is full in this group. Choose Team 2.')
+      return
+    }
+    if (teamNum === 2 && t2Count >= 2) {
+      setRegError('Team 2 is full in this group. Choose Team 1.')
+      return
+    }
+
     setRegistering(true)
-    await supabase.from('roster').upsert({ name: newName.trim(), default_handicap: parseFloat(newHandicap) || 0 }, { onConflict: 'name' })
-    const groupNum = parseInt(newGroup)
-    const foursome = foursomes.find((f: any) => f.group_number === groupNum)
+
+    // If first player in group, set the group's game settings
+    const isFirstInGroup = groupPlayers.length === 0
+    if (isFirstInGroup) {
+      await supabase.from('foursomes').update({
+        game_type: newGameType,
+        stakes: parseFloat(newStakes) || 1,
+        ctp_stakes: parseFloat(newCtpStakes) || 1,
+      }).eq('id', selectedFoursome.id)
+    }
+
+    await supabase.from('roster').upsert(
+      { name: newName.trim(), default_handicap: parseFloat(newHandicap) || 0 },
+      { onConflict: 'name' }
+    )
     const { data: p } = await supabase.from('players').insert({
       round_id: round.id,
       name: newName.trim(),
       handicap_index: parseFloat(newHandicap) || 0,
-      foursome_id: foursome?.id ?? null,
-      vegas_team: parseInt(newTeam),
+      foursome_id: selectedFoursome.id,
+      vegas_team: teamNum,
     }).select().single()
+
     setRegistering(false)
     if (p) pickPlayer(p)
   }
@@ -124,89 +185,202 @@ export default function LeaderboardPage() {
     </div>
   )
 
-  // Name picker modal
-  if (showPicker) return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setShowPicker(false)} className="text-gray-400 text-sm">← Back</button>
-        <h2 className="text-xl font-bold">Who are you?</h2>
-      </div>
-      <p className="text-gray-400 text-sm">Tap your name to go to your score card.</p>
+  // Name picker / registration
+  if (showPicker) {
+    // Compute stats per foursome for the UI
+    const foursomeStats = foursomes.reduce((acc, f) => {
+      const gp = players.filter(p => p.foursome_id === f.id)
+      acc[f.id] = {
+        playerCount: gp.length,
+        team1Count: gp.filter(p => p.vegas_team === 1).length,
+        team2Count: gp.filter(p => p.vegas_team === 2).length,
+        gameType: f.game_type,
+        isFull: gp.length >= 4,
+      }
+      return acc
+    }, {} as Record<string, any>)
 
-      <div className="space-y-2">
-        {players
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((p: any) => (
-            <button
-              key={p.id}
-              onClick={() => pickPlayer(p)}
-              className="w-full bg-gray-900 hover:bg-green-900 rounded-xl px-4 py-4 text-left font-semibold transition"
-            >
-              {p.name}
-              <span className="text-gray-500 text-sm ml-2">Hcp {p.handicap_index}</span>
-            </button>
-          ))}
-      </div>
+    const selectedFoursome = foursomes.find(f => f.group_number === parseInt(newGroup))
+    const selectedStats = selectedFoursome ? foursomeStats[selectedFoursome.id] : null
+    const isFirstInGroup = selectedStats?.playerCount === 0
+    const groupFull = selectedStats?.isFull
+    const team1Full = (selectedStats?.team1Count ?? 0) >= 2
+    const team2Full = (selectedStats?.team2Count ?? 0) >= 2
+    const lockedGameType = selectedFoursome?.game_type
 
-      {/* Self-registration */}
-      <div className="border-t border-gray-800 pt-4 space-y-3">
-        <p className="text-sm font-semibold text-gray-400">Don't see your name?</p>
-        <input
-          type="text"
-          placeholder="Your name"
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
-        />
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Handicap</label>
-            <input
-              type="number"
-              min="0"
-              max="54"
-              step="0.1"
-              placeholder="0"
-              value={newHandicap}
-              onChange={e => setNewHandicap(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Group</label>
-            <select
-              value={newGroup}
-              onChange={e => setNewGroup(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
-            >
-              {foursomes.map((f: any) => (
-                <option key={f.id} value={f.group_number}>Group {f.group_number}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Vegas Team</label>
-            <select
-              value={newTeam}
-              onChange={e => setNewTeam(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
-            >
-              <option value="1">Team 1</option>
-              <option value="2">Team 2</option>
-            </select>
-          </div>
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowPicker(false)} className="text-gray-400 text-sm">← Back</button>
+          <h2 className="text-xl font-bold">Who are you?</h2>
         </div>
-        <button
-          onClick={registerPlayer}
-          disabled={!newName.trim() || registering}
-          className="w-full bg-green-700 rounded-xl py-3 font-bold disabled:opacity-50"
-        >
-          {registering ? 'Adding...' : "I'm In — Add Me"}
-        </button>
-        <p className="text-xs text-gray-600">You'll be added to the round and taken to your score card.</p>
+        <p className="text-gray-400 text-sm">Tap your name to go to your score card.</p>
+
+        <div className="space-y-2">
+          {players
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p: any) => (
+              <button
+                key={p.id}
+                onClick={() => pickPlayer(p)}
+                className="w-full bg-gray-900 hover:bg-green-900 rounded-xl px-4 py-4 text-left font-semibold transition"
+              >
+                {p.name}
+                <span className="text-gray-500 text-sm ml-2">Hcp {p.handicap_index}</span>
+              </button>
+            ))}
+        </div>
+
+        {/* Self-registration */}
+        <div className="border-t border-gray-800 pt-4 space-y-3">
+          <p className="text-sm font-semibold text-gray-400">Don't see your name?</p>
+
+          <input
+            type="text"
+            placeholder="Your name"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white"
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Handicap Index</label>
+              <input
+                type="number" min="0" max="54" step="0.1" placeholder="0"
+                value={newHandicap}
+                onChange={e => setNewHandicap(e.target.value)}
+                className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Group</label>
+              <select
+                value={newGroup}
+                onChange={e => setNewGroup(e.target.value)}
+                className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+              >
+                <option value="">Select...</option>
+                {foursomes.map((f: any) => {
+                  const s = foursomeStats[f.id]
+                  return (
+                    <option key={f.id} value={f.group_number} disabled={s?.isFull}>
+                      Group {f.group_number} ({s?.playerCount ?? 0}/4){s?.isFull ? ' — FULL' : ''}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+          </div>
+
+          {groupFull && (
+            <div className="bg-red-900 text-red-300 rounded-lg px-4 py-3 text-sm">
+              ⛔ This group is full. See admin to be added.
+            </div>
+          )}
+
+          {selectedFoursome && !groupFull && (
+            <>
+              {/* Vegas team selector */}
+              {(lockedGameType === 'vegas' || (!lockedGameType && newGameType === 'vegas')) && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Vegas Team</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[1, 2].map(t => {
+                      const isFull = t === 1 ? team1Full : team2Full
+                      const count = t === 1 ? selectedStats?.team1Count : selectedStats?.team2Count
+                      return (
+                        <button
+                          key={t}
+                          disabled={isFull}
+                          onClick={() => setNewTeam(String(t))}
+                          className={`py-3 rounded-xl font-bold text-sm transition ${
+                            newTeam === String(t) && !isFull
+                              ? 'bg-green-700 text-white'
+                              : isFull
+                              ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                              : 'bg-gray-800 text-gray-300'
+                          }`}
+                        >
+                          Team {t} ({count ?? 0}/2){isFull ? ' — FULL' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Game type — locked if already set by first player */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Game</label>
+                {lockedGameType ? (
+                  <div className="bg-gray-800 rounded-lg px-4 py-3 text-sm text-gray-300">
+                    {lockedGameType === 'vegas' ? '🎰 Vegas' : lockedGameType === 'stroke' ? '🏌️ Stroke Play' : '⛳ None'} — set by your group
+                  </div>
+                ) : (
+                  <select
+                    value={newGameType}
+                    onChange={e => setNewGameType(e.target.value)}
+                    className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+                  >
+                    <option value="vegas">🎰 Vegas</option>
+                    <option value="stroke">🏌️ Stroke Play</option>
+                    <option value="none">⛳ No side game</option>
+                  </select>
+                )}
+                {isFirstInGroup && (
+                  <p className="text-xs text-yellow-500 mt-1">You're first in this group — your selection sets the game.</p>
+                )}
+              </div>
+
+              {/* Stakes — only shown to first player */}
+              {isFirstInGroup && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">$ Per Point</label>
+                    <input
+                      type="number" step="0.5" min="0"
+                      value={newStakes}
+                      onChange={e => setNewStakes(e.target.value)}
+                      className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">$ CTP Per Hole</label>
+                    <input
+                      type="number" step="0.5" min="0"
+                      value={newCtpStakes}
+                      onChange={e => setNewCtpStakes(e.target.value)}
+                      className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!isFirstInGroup && selectedFoursome?.stakes && (
+                <p className="text-xs text-gray-500">
+                  Stakes: ${selectedFoursome.stakes}/pt · CTP: ${selectedFoursome.ctp_stakes}/hole
+                </p>
+              )}
+            </>
+          )}
+
+          {regError && (
+            <div className="bg-red-900 text-red-300 rounded-lg px-4 py-3 text-sm">⚠️ {regError}</div>
+          )}
+
+          <button
+            onClick={registerPlayer}
+            disabled={!newName.trim() || !newGroup || registering || groupFull}
+            className="w-full bg-green-700 rounded-xl py-3 font-bold disabled:opacity-50"
+          >
+            {registering ? 'Adding...' : "I'm In — Add Me"}
+          </button>
+          <p className="text-xs text-gray-600">You'll be added to the round and taken to your score card.</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -220,7 +394,6 @@ export default function LeaderboardPage() {
         <Link href="/setup" className="text-xs text-green-400 underline">Setup</Link>
       </div>
 
-      {/* Enter My Scores button */}
       <button
         onClick={() => {
           if (myPlayerId && players.find(p => p.id === myPlayerId)) {
@@ -275,7 +448,10 @@ export default function LeaderboardPage() {
         {foursomes.map((f: any) => (
           <Link key={f.id} href={`/foursome/${f.id}`} className="bg-gray-900 rounded-xl p-4 text-center hover:bg-gray-800 transition">
             <p className="font-bold text-green-400">Group {f.group_number}</p>
-            <p className="text-xs text-gray-400 mt-1">{round.game_type === 'vegas' ? 'Vegas' : round.game_type}</p>
+            <p className="text-xs text-gray-400 mt-1">{f.game_type ?? round.game_type ?? 'vegas'}</p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {players.filter(p => p.foursome_id === f.id).length}/4
+            </p>
           </Link>
         ))}
       </div>

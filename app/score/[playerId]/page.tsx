@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { strokesPerHole, scoreLabel, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
@@ -9,6 +10,7 @@ interface Props { params: { playerId: string } }
 export default function ScoreEntryPage({ params }: Props) {
   const { playerId } = params
   const [player, setPlayer] = useState<any>(null)
+  const [foursomeId, setFoursomeId] = useState<string | null>(null)
   const [scores, setScores] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState<number | null>(null)
   const [currentHole, setCurrentHole] = useState(1)
@@ -23,6 +25,7 @@ export default function ScoreEntryPage({ params }: Props) {
       ])
       if (!p) return
       setPlayer(p)
+      if (p.foursome_id) setFoursomeId(p.foursome_id)
 
       // Load course config from round
       const { data: r } = await supabase.from('rounds').select('hole_pars, hole_handicaps').eq('id', p.round_id).single()
@@ -67,6 +70,12 @@ export default function ScoreEntryPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Link href="/" className="text-gray-400 text-sm">← Leaderboard</Link>
+        {foursomeId && (
+          <Link href={`/foursome/${foursomeId}`} className="text-green-400 text-sm">My Group →</Link>
+        )}
+      </div>
       <div>
         <h2 className="text-2xl font-bold">{player.name}</h2>
         <p className="text-gray-400 text-sm">Handicap {player.handicap_index}</p>
