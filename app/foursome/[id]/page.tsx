@@ -13,6 +13,7 @@ export default function FoursomePage({ params }: Props) {
   const [players, setPlayers] = useState<any[]>([])
   const [round, setRound] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [expandedHole, setExpandedHole] = useState<number | null>(null)
 
   async function load() {
     const [{ data: fs }, { data: rawPlayers }] = await Promise.all([
@@ -62,13 +63,22 @@ export default function FoursomePage({ params }: Props) {
 
   for (let i = 0; i < 18; i++) {
     const hole = i + 1
-    const t1Scores = team1.map(p => p.scores[hole]).filter(Boolean)
-    const t2Scores = team2.map(p => p.scores[hole]).filter(Boolean)
-    if (t1Scores.length === 2 && t2Scores.length === 2) {
-      const result = vegasHole([t1Scores[0], t1Scores[1]], [t2Scores[0], t2Scores[1]])
+    const par = holePars[i] ?? 4
+    const t1HasScores = team1.every(p => p.scores[hole] !== undefined)
+    const t2HasScores = team2.every(p => p.scores[hole] !== undefined)
+    if (t1HasScores && t2HasScores && team1.length === 2 && team2.length === 2) {
+      const t1Net = team1.map(p => {
+        const strokes = strokesPerHole(p.handicap_index, holeHandicaps)
+        return (p.scores[hole] as number) - (strokes[hole] ?? 0)
+      }) as [number, number]
+      const t2Net = team2.map(p => {
+        const strokes = strokesPerHole(p.handicap_index, holeHandicaps)
+        return (p.scores[hole] as number) - (strokes[hole] ?? 0)
+      }) as [number, number]
+      const result = vegasHole(t1Net, t2Net, par)
       if (result.winner === 1) t1TotalPoints += result.points
       if (result.winner === 2) t2TotalPoints += result.points
-      vegasRows.push({ hole, ...result })
+      vegasRows.push({ hole, par, ...result })
     }
   }
 
@@ -126,17 +136,36 @@ export default function FoursomePage({ params }: Props) {
             <span>Hole</span><span className="text-center">T1</span><span className="text-center">T2</span><span className="text-right">Pts</span>
           </div>
           {vegasRows.map((vh: any) => (
-            <div key={vh.hole} className={`grid grid-cols-[2.5rem_1fr_1fr_3rem] gap-2 px-4 py-2 border-b border-gray-800 last:border-0 text-sm ${vh.winner === 1 ? 'bg-blue-950' : vh.winner === 2 ? 'bg-red-950' : ''}`}>
-              <span className="text-gray-500">{vh.hole}</span>
-              <span className={`text-center font-mono font-bold ${vh.winner === 1 ? 'text-blue-300' : 'text-gray-400'}`}>{vh.t1Number}</span>
-              <span className={`text-center font-mono font-bold ${vh.winner === 2 ? 'text-red-300' : 'text-gray-400'}`}>{vh.t2Number}</span>
-              <span className="text-right text-gray-300">{vh.points > 0 ? vh.points : '–'}</span>
+            <div key={vh.hole}>
+              <button
+                onClick={() => setExpandedHole(expandedHole === vh.hole ? null : vh.hole)}
+                className={`w-full grid grid-cols-[2.5rem_1fr_1fr_3rem] gap-2 px-4 py-2 border-b border-gray-800 text-sm text-left transition ${vh.winner === 1 ? 'bg-blue-950' : vh.winner === 2 ? 'bg-red-950' : ''} ${vh.events?.length > 0 ? 'cursor-pointer' : ''}`}
+              >
+                <span className="text-gray-500 self-center">
+                  {vh.hole}
+                  {vh.events?.length > 0 && <span className="ml-1 text-yellow-400 text-xs">●</span>}
+                </span>
+                <span className={`text-center font-mono font-bold self-center ${vh.winner === 1 ? 'text-blue-300' : 'text-gray-400'}`}>{vh.t1Number}</span>
+                <span className={`text-center font-mono font-bold self-center ${vh.winner === 2 ? 'text-red-300' : 'text-gray-400'}`}>{vh.t2Number}</span>
+                <span className="text-right text-gray-300 self-center">{vh.points > 0 ? vh.points : '–'}</span>
+              </button>
+              {expandedHole === vh.hole && vh.events?.length > 0 && (
+                <div className="px-4 py-3 bg-gray-800 border-b border-gray-700 space-y-1">
+                  {vh.events.map((e: string, i: number) => (
+                    <p key={i} className="text-xs text-yellow-300">{e}</p>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {vegasRows.length === 0 && (
             <p className="text-center text-gray-500 py-6 text-sm">Vegas starts once both teams have scores</p>
           )}
         </div>
+
+        {vegasRows.length > 0 && (
+          <p className="text-xs text-gray-600 text-center mt-1">Tap a hole with ● to see what happened</p>
+        )}
 
         {vegasRows.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mt-3">
