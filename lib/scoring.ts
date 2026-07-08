@@ -20,6 +20,19 @@ export function strokesPerHole(
   return strokes
 }
 
+// For groups playing without handicaps: manually assigned stroke count distributed on hardest holes.
+export function strokesFromCount(
+  strokeCount: number,
+  customHandicaps?: number[]
+): Record<number, number> {
+  const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
+  const strokes: Record<number, number> = {}
+  handicaps.forEach((hcp, i) => {
+    strokes[i + 1] = hcp <= strokeCount ? 1 : 0
+  })
+  return strokes
+}
+
 // For Vegas: strokes relative to the lowest handicap in the group.
 // The lowest handicap player gets 0 strokes; everyone else gets the difference.
 export function relativeStrokesPerHole(

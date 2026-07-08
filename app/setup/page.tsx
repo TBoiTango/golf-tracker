@@ -14,6 +14,7 @@ function GroupSettings({ foursome, roundStakes, onSave }: {
   const [gameType, setGameType] = useState(foursome.game_type ?? '')
   const [stakes, setStakes] = useState(String(foursome.stakes ?? roundStakes ?? 1))
   const [ctpStakes, setCtpStakes] = useState(String(foursome.ctp_stakes ?? 1))
+  const [useHandicaps, setUseHandicaps] = useState(foursome.use_handicaps !== false)
 
   return (
     <div className="space-y-2">
@@ -41,11 +42,29 @@ function GroupSettings({ foursome, roundStakes, onSave }: {
             className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm" />
         </div>
       </div>
+
+      {/* Handicap toggle */}
+      <div className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+        <div>
+          <p className="text-sm font-semibold">Use Handicaps</p>
+          <p className="text-xs text-gray-500">
+            {useHandicaps ? 'Strokes auto-calculated from handicap index' : 'Set strokes manually per player below'}
+          </p>
+        </div>
+        <button
+          onClick={() => setUseHandicaps(h => !h)}
+          className={`w-12 h-6 rounded-full transition relative ${useHandicaps ? 'bg-green-600' : 'bg-gray-600'}`}
+        >
+          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${useHandicaps ? 'left-6' : 'left-0.5'}`} />
+        </button>
+      </div>
+
       <button
         onClick={() => onSave({
           game_type: gameType || null,
           stakes: parseFloat(stakes) || roundStakes,
           ctp_stakes: parseFloat(ctpStakes) || 1,
+          use_handicaps: useHandicaps,
         })}
         className="w-full bg-blue-700 rounded-lg py-2 text-sm font-bold"
       >
@@ -420,6 +439,22 @@ export default function SetupPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Manual strokes when handicaps are off */}
+                {f.use_handicaps === false && groupPlayers.map(p => (
+                  <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-sm font-semibold">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Strokes</label>
+                      <input
+                        type="number" min="0" max="18"
+                        defaultValue={p.manual_strokes ?? 0}
+                        onBlur={e => savePlayer(p.id, { manual_strokes: parseInt(e.target.value) || 0 })}
+                        className="w-16 bg-gray-700 rounded-lg px-2 py-1 text-sm text-center"
+                      />
+                    </div>
+                  </div>
+                ))}
 
                 {groupPlayers.filter(p => !p.vegas_team).map(p => (
                   <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">

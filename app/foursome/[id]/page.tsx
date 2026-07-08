@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { strokesPerHole, relativeStrokesPerHole, vegasHole, formatVsPar, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
+import { strokesPerHole, relativeStrokesPerHole, strokesFromCount, vegasHole, formatVsPar, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
 interface Props { params: { id: string } }
 
@@ -82,6 +82,17 @@ export default function FoursomePage({ params }: Props) {
   const gameType      = foursome.game_type    ?? round?.game_type ?? 'vegas'
   const stakes        = foursome.stakes       ?? round?.stakes    ?? 1
   const ctpStakes     = foursome.ctp_stakes   ?? 1
+  const useHandicaps  = foursome.use_handicaps !== false
+
+  function getStrokesForPlayer(p: any, minHcp: number): Record<number, number> {
+    if (!useHandicaps) return strokesFromCount(p.manual_strokes ?? 0, holeHandicaps)
+    return relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
+  }
+
+  function getFullStrokesForPlayer(p: any): Record<number, number> {
+    if (!useHandicaps) return strokesFromCount(p.manual_strokes ?? 0, holeHandicaps)
+    return strokesPerHole(p.handicap_index, holeHandicaps)
+  }
 
   const team1 = players.filter(p => p.vegas_team === 1)
   const team2 = players.filter(p => p.vegas_team === 2)
@@ -91,9 +102,8 @@ export default function FoursomePage({ params }: Props) {
   const vegasRows: any[] = []
 
   if (gameType === 'vegas') {
-    // Relative handicap: lowest handicap in the foursome gets 0 strokes
     const allPlayers = [...team1, ...team2]
-    const minHcp = allPlayers.length > 0
+    const minHcp = useHandicaps && allPlayers.length > 0
       ? Math.min(...allPlayers.map(p => p.handicap_index))
       : 0
 
@@ -104,11 +114,11 @@ export default function FoursomePage({ params }: Props) {
       const t2HasScores = team2.length === 2 && team2.every(p => p.scores[hole] !== undefined)
       if (t1HasScores && t2HasScores) {
         const t1Net = team1.map(p => {
-          const strokes = relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
+          const strokes = getStrokesForPlayer(p, minHcp)
           return (p.scores[hole] as number) - (strokes[hole] ?? 0)
         }) as [number, number]
         const t2Net = team2.map(p => {
-          const strokes = relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
+          const strokes = getStrokesForPlayer(p, minHcp)
           return (p.scores[hole] as number) - (strokes[hole] ?? 0)
         }) as [number, number]
         const result = vegasHole(t1Net, t2Net, par)
@@ -142,7 +152,10 @@ export default function FoursomePage({ params }: Props) {
       <div className="flex items-center gap-3">
         <Link href="/" className="text-gray-400 text-sm">← Leaderboard</Link>
         <h2 className="text-xl font-bold">Group {foursome.group_number}</h2>
-        <span className="text-xs text-gray-500 ml-auto">{gameType === 'vegas' ? '🎰 Vegas' : gameType === 'stroke' ? '🏌️ Stroke' : '⛳ No game'}</span>
+        <span className="text-xs text-gray-500 ml-auto">
+          {gameType === 'vegas' ? '🎰 Vegas' : gameType === 'stroke' ? '🏌️ Stroke' : '⛳ No game'}
+          {' · '}{useHandicaps ? 'Handicap' : 'Straight up'}
+        </span>
       </div>
 
       {/* Team balance warning */}
@@ -161,7 +174,7 @@ export default function FoursomePage({ params }: Props) {
               <p className="text-xs text-gray-400 uppercase tracking-wide">Team {teamNum}</p>
               {team.length === 0 && <p className="text-xs text-gray-600">No players yet</p>}
               {team.map(p => {
-                const strokes = strokesPerHole(p.handicap_index, holeHandicaps)
+                const strokes = getFullStrokesForPlayer(p)
                 const holesPlayed = Object.keys(p.scores).length
                 const net = Object.entries(p.scores).reduce((sum, [hole, g]: any) => sum + g - (strokes[parseInt(hole)] ?? 0), 0)
                 const parPlayed = Object.keys(p.scores).reduce((sum, h) => sum + (holePars[parseInt(h) - 1] ?? 4), 0)
