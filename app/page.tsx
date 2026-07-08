@@ -477,7 +477,7 @@ export default function LeaderboardPage() {
 
       <h2 className="text-lg font-bold">Foursomes</h2>
       <div className={`grid gap-3 ${foursomes.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-        {foursomes.map((f: any) => (
+        {[...foursomes].sort((a, b) => a.group_number - b.group_number).map((f: any) => (
           <Link key={f.id} href={`/foursome/${f.id}`} className="bg-gray-900 rounded-xl p-4 text-center hover:bg-gray-800 transition">
             <p className="font-bold text-green-400">Group {f.group_number}</p>
             <p className="text-xs text-gray-400 mt-1">{f.game_type ?? round.game_type ?? 'vegas'}</p>
