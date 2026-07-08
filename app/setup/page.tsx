@@ -6,6 +6,55 @@ import { DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
 type Tab = 'round' | 'players' | 'groups' | 'course' | 'history'
 
+function GroupSettings({ foursome, roundStakes, onSave }: {
+  foursome: any
+  roundStakes: number
+  onSave: (updates: any) => void
+}) {
+  const [gameType, setGameType] = useState(foursome.game_type ?? '')
+  const [stakes, setStakes] = useState(String(foursome.stakes ?? roundStakes ?? 1))
+  const [ctpStakes, setCtpStakes] = useState(String(foursome.ctp_stakes ?? 1))
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Game Type</label>
+          <select value={gameType} onChange={e => setGameType(e.target.value)}
+            className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
+            <option value="">Round default</option>
+            <option value="vegas">Vegas</option>
+            <option value="stroke">Stroke Play</option>
+            <option value="none">No game</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">$/pt</label>
+          <input type="number" step="0.5" min="0" value={stakes}
+            onChange={e => setStakes(e.target.value)}
+            className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">CTP $/hole</label>
+          <input type="number" step="0.5" min="0" value={ctpStakes}
+            onChange={e => setCtpStakes(e.target.value)}
+            className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm" />
+        </div>
+      </div>
+      <button
+        onClick={() => onSave({
+          game_type: gameType || null,
+          stakes: parseFloat(stakes) || roundStakes,
+          ctp_stakes: parseFloat(ctpStakes) || 1,
+        })}
+        className="w-full bg-blue-700 rounded-lg py-2 text-sm font-bold"
+      >
+        Save Group Settings
+      </button>
+    </div>
+  )
+}
+
 export default function SetupPage() {
   const [authed, setAuthed]       = useState(false)
   const [password, setPassword]   = useState('')
@@ -150,6 +199,13 @@ export default function SetupPage() {
     }
   }
 
+  async function saveFoursome(foursomeId: string, updates: any) {
+    const { error } = await supabase.from('foursomes').update(updates).eq('id', foursomeId)
+    if (error) { flash('Error saving group'); return }
+    setFoursomes(prev => prev.map(f => f.id === foursomeId ? { ...f, ...updates } : f))
+    flash('Group saved!')
+  }
+
   if (!authed) return (
     <div className="max-w-sm mx-auto mt-20 space-y-4">
       <h2 className="text-xl font-bold text-center">Admin Setup</h2>
@@ -162,12 +218,6 @@ export default function SetupPage() {
         className="w-full bg-green-700 rounded-lg py-3 font-semibold">Enter</button>
     </div>
   )
-
-  async function saveFoursome(foursomeId: string, updates: any) {
-    await supabase.from('foursomes').update(updates).eq('id', foursomeId)
-    setFoursomes(prev => prev.map(f => f.id === foursomeId ? { ...f, ...updates } : f))
-    flash('Group saved!')
-  }
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'round', label: 'Round' }, { key: 'players', label: 'Players' },
@@ -342,39 +392,11 @@ export default function SetupPage() {
                   <span className="text-xs text-gray-500">{groupPlayers.length}/4 players</span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">Game Type</label>
-                    <select
-                      value={f.game_type ?? ''}
-                      onChange={e => saveFoursome(f.id, { game_type: e.target.value || null })}
-                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
-                    >
-                      <option value="">Use round default</option>
-                      <option value="vegas">Vegas</option>
-                      <option value="stroke">Stroke Play</option>
-                      <option value="none">No game</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">$/pt</label>
-                    <input
-                      type="number" step="0.5" min="0"
-                      defaultValue={f.stakes ?? round?.stakes ?? 1}
-                      onBlur={e => saveFoursome(f.id, { stakes: parseFloat(e.target.value) || null })}
-                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">CTP $/hole</label>
-                    <input
-                      type="number" step="0.5" min="0"
-                      defaultValue={f.ctp_stakes ?? 1}
-                      onBlur={e => saveFoursome(f.id, { ctp_stakes: parseFloat(e.target.value) || 1 })}
-                      className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm"
-                    />
-                  </div>
-                </div>
+                <GroupSettings
+                  foursome={f}
+                  roundStakes={round?.stakes ?? 1}
+                  onSave={updates => saveFoursome(f.id, updates)}
+                />
 
                 {/* Team view with move controls */}
                 <div className="grid grid-cols-2 gap-2">
@@ -399,7 +421,6 @@ export default function SetupPage() {
                   ))}
                 </div>
 
-                {/* Players not assigned to a team */}
                 {groupPlayers.filter(p => !p.vegas_team).map(p => (
                   <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
                     <p className="text-sm text-yellow-300">⚠️ {p.name} — no team</p>
@@ -410,9 +431,8 @@ export default function SetupPage() {
                   </div>
                 ))}
 
-                {/* Admin override: add player to full group */}
                 {groupPlayers.length >= 4 && (
-                  <p className="text-xs text-orange-400">Group is full. To add another player, go to the Players tab and manually assign them to this group.</p>
+                  <p className="text-xs text-orange-400">Group is full. To add another player, use the Players tab and assign them to this group manually.</p>
                 )}
               </div>
             )

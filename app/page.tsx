@@ -357,10 +357,15 @@ export default function LeaderboardPage() {
                 </div>
               )}
 
-              {!isFirstInGroup && selectedFoursome?.stakes && (
-                <p className="text-xs text-gray-500">
-                  Stakes: ${selectedFoursome.stakes}/pt · CTP: ${selectedFoursome.ctp_stakes}/hole
-                </p>
+              {!isFirstInGroup && (
+                <div className="bg-gray-800 rounded-lg px-4 py-3 text-sm space-y-1">
+                  <p className="text-gray-300 font-semibold">
+                    {lockedGameType === 'vegas' ? '🎰 Vegas' : lockedGameType === 'stroke' ? '🏌️ Stroke Play' : '⛳ No side game'}
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    ${selectedFoursome?.stakes ?? round?.stakes ?? 1}/pt Vegas · ${selectedFoursome?.ctp_stakes ?? 1}/hole CTP
+                  </p>
+                </div>
               )}
             </>
           )}
