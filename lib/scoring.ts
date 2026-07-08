@@ -20,6 +20,24 @@ export function strokesPerHole(
   return strokes
 }
 
+// For Vegas: strokes relative to the lowest handicap in the group.
+// The lowest handicap player gets 0 strokes; everyone else gets the difference.
+export function relativeStrokesPerHole(
+  handicapIndex: number,
+  minHandicapIndex: number,
+  customHandicaps?: number[]
+): Record<number, number> {
+  const ch    = courseHandicap(handicapIndex)
+  const minCh = courseHandicap(minHandicapIndex)
+  const relativeCh = Math.max(0, ch - minCh)
+  const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
+  const strokes: Record<number, number> = {}
+  handicaps.forEach((hcp, i) => {
+    strokes[i + 1] = hcp <= relativeCh ? 1 : 0
+  })
+  return strokes
+}
+
 export function scoreLabel(score: number, par: number): string {
   const diff = score - par
   if (diff <= -2) return 'Eagle'

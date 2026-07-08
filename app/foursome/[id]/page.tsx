@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { strokesPerHole, vegasHole, formatVsPar, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
+import { strokesPerHole, relativeStrokesPerHole, vegasHole, formatVsPar, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
 interface Props { params: { id: string } }
 
@@ -91,6 +91,12 @@ export default function FoursomePage({ params }: Props) {
   const vegasRows: any[] = []
 
   if (gameType === 'vegas') {
+    // Relative handicap: lowest handicap in the foursome gets 0 strokes
+    const allPlayers = [...team1, ...team2]
+    const minHcp = allPlayers.length > 0
+      ? Math.min(...allPlayers.map(p => p.handicap_index))
+      : 0
+
     for (let i = 0; i < 18; i++) {
       const hole = i + 1
       const par = holePars[i] ?? 4
@@ -98,11 +104,11 @@ export default function FoursomePage({ params }: Props) {
       const t2HasScores = team2.length === 2 && team2.every(p => p.scores[hole] !== undefined)
       if (t1HasScores && t2HasScores) {
         const t1Net = team1.map(p => {
-          const strokes = strokesPerHole(p.handicap_index, holeHandicaps)
+          const strokes = relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
           return (p.scores[hole] as number) - (strokes[hole] ?? 0)
         }) as [number, number]
         const t2Net = team2.map(p => {
-          const strokes = strokesPerHole(p.handicap_index, holeHandicaps)
+          const strokes = relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
           return (p.scores[hole] as number) - (strokes[hole] ?? 0)
         }) as [number, number]
         const result = vegasHole(t1Net, t2Net, par)
