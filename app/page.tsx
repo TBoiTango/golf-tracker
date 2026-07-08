@@ -404,6 +404,17 @@ export default function LeaderboardPage() {
         <Link href="/setup" className="text-xs text-green-400 underline">Setup</Link>
       </div>
 
+      {/* Round banner */}
+      <div className="bg-gray-900 rounded-xl px-4 py-3 flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-sm">{round.round_name}</p>
+          <p className="text-xs text-gray-500">{round.date ? new Date(round.date).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' }) : ''}</p>
+        </div>
+        <span className={`text-xs px-3 py-1 rounded-full font-semibold ${round.status === 'active' ? 'bg-green-800 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
+          {round.status === 'active' ? '🟢 Live' : '⚙️ Setup'}
+        </span>
+      </div>
+
       <button
         onClick={() => {
           if (myPlayerId && players.find(p => p.id === myPlayerId)) {
