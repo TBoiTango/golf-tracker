@@ -16,6 +16,7 @@ export default function ScoreEntryPage({ params }: Props) {
   const [currentHole, setCurrentHole] = useState(1)
   const [holePars, setHolePars] = useState(DEFAULT_PARS)
   const [holeHandicaps, setHoleHandicaps] = useState(DEFAULT_HANDICAPS)
+  const [slope, setSlope] = useState(125)
 
   useEffect(() => {
     async function load() {
@@ -28,9 +29,10 @@ export default function ScoreEntryPage({ params }: Props) {
       if (p.foursome_id) setFoursomeId(p.foursome_id)
 
       // Load course config from round
-      const { data: r } = await supabase.from('rounds').select('hole_pars, hole_handicaps').eq('id', p.round_id).single()
+      const { data: r } = await supabase.from('rounds').select('hole_pars, hole_handicaps, slope').eq('id', p.round_id).single()
       if (r?.hole_pars)      setHolePars(r.hole_pars)
       if (r?.hole_handicaps) setHoleHandicaps(r.hole_handicaps)
+      if (r?.slope)          setSlope(r.slope)
 
       if (s) {
         const map: Record<number, number> = {}
@@ -62,7 +64,7 @@ export default function ScoreEntryPage({ params }: Props) {
 
   if (!player) return <p className="text-center text-gray-400 mt-12">Loading...</p>
 
-  const strokes = strokesPerHole(player.handicap_index, holeHandicaps)
+  const strokes = strokesPerHole(player.handicap_index, holeHandicaps, slope)
   const par = holePars[currentHole - 1] ?? 4
   const currentGross = scores[currentHole]
 

@@ -84,14 +84,16 @@ export default function FoursomePage({ params }: Props) {
   const ctpStakes     = foursome.ctp_stakes   ?? 1
   const useHandicaps  = foursome.use_handicaps !== false
 
+  const slope = round?.slope ?? 125
+
   function getStrokesForPlayer(p: any, minHcp: number): Record<number, number> {
     if (!useHandicaps) return strokesFromCount(p.manual_strokes ?? 0, holeHandicaps)
-    return relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps)
+    return relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps, slope)
   }
 
   function getFullStrokesForPlayer(p: any): Record<number, number> {
     if (!useHandicaps) return strokesFromCount(p.manual_strokes ?? 0, holeHandicaps)
-    return strokesPerHole(p.handicap_index, holeHandicaps)
+    return strokesPerHole(p.handicap_index, holeHandicaps, slope)
   }
 
   const team1 = players.filter(p => p.vegas_team === 1)

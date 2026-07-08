@@ -93,6 +93,8 @@ export default function SetupPage() {
   const [gameType, setGameType]   = useState('vegas')
   const [stakes, setStakes]       = useState('1')
   const [numGroups, setNumGroups] = useState(3)
+  const [slope, setSlope]         = useState('125')
+  const [rating, setRating]       = useState('70.5')
 
   // Course editor
   const [holePars, setHolePars]           = useState([...DEFAULT_PARS])
@@ -116,6 +118,8 @@ export default function SetupPage() {
       setRoundName(active.round_name ?? 'Tierra Rejada')
       setGameType(active.game_type ?? 'vegas')
       setStakes(String(active.stakes ?? 1))
+      setSlope(String(active.slope ?? 125))
+      setRating(String(active.rating ?? 70.5))
       if (active.hole_pars)      setHolePars(active.hole_pars)
       if (active.hole_handicaps) setHoleHandicaps(active.hole_handicaps)
       await loadRoundData(active.id)
@@ -137,6 +141,7 @@ export default function SetupPage() {
     const { data: r, error } = await supabase.from('rounds').insert({
       round_name: roundName, date: roundDate, game_type: gameType,
       stakes: parseFloat(stakes) || 1, num_groups: numGroups,
+      slope: parseInt(slope) || 125, rating: parseFloat(rating) || 70.5,
       hole_pars: holePars, hole_handicaps: holeHandicaps, status: 'setup',
     }).select().single()
     if (error || !r) { flash('Error creating round'); return }
@@ -153,6 +158,7 @@ export default function SetupPage() {
     if (!round) return
     await supabase.from('rounds').update({
       round_name: roundName, game_type: gameType, stakes: parseFloat(stakes) || 1,
+      slope: parseInt(slope) || 125, rating: parseFloat(rating) || 70.5,
     }).eq('id', round.id)
     flash('Settings saved!')
     await loadAll()
@@ -298,6 +304,18 @@ export default function SetupPage() {
               <div>
                 <label className="text-xs text-gray-500 block mb-1">$ Per Point</label>
                 <input type="number" step="0.5" min="0" value={stakes} onChange={e => setStakes(e.target.value)}
+                  className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Course Slope</label>
+                <input type="number" min="55" max="155" value={slope} onChange={e => setSlope(e.target.value)}
+                  className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Course Rating</label>
+                <input type="number" step="0.1" min="60" max="80" value={rating} onChange={e => setRating(e.target.value)}
                   className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
@@ -527,7 +545,7 @@ export default function SetupPage() {
                 </span>
               </div>
               <div className="flex gap-3">
-                <button onClick={async () => { setRound(r); setRoundName(r.round_name ?? ''); setGameType(r.game_type ?? 'vegas'); setStakes(String(r.stakes ?? 1)); if (r.hole_pars) setHolePars(r.hole_pars); if (r.hole_handicaps) setHoleHandicaps(r.hole_handicaps); await loadRoundData(r.id); setTab('round') }}
+                <button onClick={async () => { setRound(r); setRoundName(r.round_name ?? ''); setGameType(r.game_type ?? 'vegas'); setStakes(String(r.stakes ?? 1)); setSlope(String(r.slope ?? 125)); setRating(String(r.rating ?? 70.5)); if (r.hole_pars) setHolePars(r.hole_pars); if (r.hole_handicaps) setHoleHandicaps(r.hole_handicaps); await loadRoundData(r.id); setTab('round') }}
                   className="text-xs text-green-400 underline">Load</button>
                 <button onClick={() => deleteRound(r.id)} className="text-xs text-red-400 underline">Delete</button>
               </div>

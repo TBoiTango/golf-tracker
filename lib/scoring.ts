@@ -1,17 +1,18 @@
-import { HOLES, SLOPE } from './course'
+import { HOLES } from './course'
 
 export const DEFAULT_PARS      = [5,3,4,5,4,4,4,4,5,4,3,5,4,3,4,5,3,4]
 export const DEFAULT_HANDICAPS = [5,11,1,7,15,13,17,9,3,2,18,8,4,10,14,6,16,12]
 
-export function courseHandicap(handicapIndex: number): number {
-  return Math.round(handicapIndex * (SLOPE / 113))
+export function courseHandicap(handicapIndex: number, slope = 125): number {
+  return Math.round(handicapIndex * (slope / 113))
 }
 
 export function strokesPerHole(
   handicapIndex: number,
-  customHandicaps?: number[]
+  customHandicaps?: number[],
+  slope?: number
 ): Record<number, number> {
-  const ch = courseHandicap(handicapIndex)
+  const ch = courseHandicap(handicapIndex, slope)
   const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
   const strokes: Record<number, number> = {}
   handicaps.forEach((hcp, i) => {
@@ -38,10 +39,11 @@ export function strokesFromCount(
 export function relativeStrokesPerHole(
   handicapIndex: number,
   minHandicapIndex: number,
-  customHandicaps?: number[]
+  customHandicaps?: number[],
+  slope?: number
 ): Record<number, number> {
-  const ch    = courseHandicap(handicapIndex)
-  const minCh = courseHandicap(minHandicapIndex)
+  const ch    = courseHandicap(handicapIndex, slope)
+  const minCh = courseHandicap(minHandicapIndex, slope)
   const relativeCh = Math.max(0, ch - minCh)
   const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
   const strokes: Record<number, number> = {}

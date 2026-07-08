@@ -71,9 +71,10 @@ export default function LeaderboardPage() {
 
   async function load() {
     const { data: rounds } = await supabase
-      .from('rounds').select('*').order('created_at', { ascending: false }).limit(1)
+      .from('rounds').select('*').order('created_at', { ascending: false })
     if (!rounds?.length) { setLoading(false); return }
-    const r = rounds[0]
+    // Prefer the active round; fall back to most recently created
+    const r = rounds.find((x: any) => x.status === 'active') ?? rounds[0]
     setRound(r)
 
     const holePars      = r.hole_pars      ?? DEFAULT_PARS
