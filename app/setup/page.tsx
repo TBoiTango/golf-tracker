@@ -421,6 +421,18 @@ export default function SetupPage() {
       {tab === 'groups' && (
         <div className="space-y-4">
           {!round && <p className="text-gray-400 text-sm text-center py-4">Create a round first</p>}
+          {round && (
+            <button
+              onClick={async () => {
+                const nextNum = foursomes.length > 0 ? Math.max(...foursomes.map(f => f.group_number)) + 1 : 1
+                const { data: f } = await supabase.from('foursomes').insert({ round_id: round.id, group_number: nextNum }).select().single()
+                if (f) { setFoursomes(prev => [...prev, f]); flash('Group added!') }
+              }}
+              className="w-full bg-green-800 rounded-xl py-3 font-bold text-sm"
+            >
+              + Add Group
+            </button>
+          )}
           {foursomes.map(f => {
             const groupPlayers = players.filter(p => p.foursome_id === f.id)
             const t1 = groupPlayers.filter(p => p.vegas_team === 1)
@@ -429,7 +441,23 @@ export default function SetupPage() {
               <div key={f.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold">Group {f.group_number}</h3>
-                  <span className="text-xs text-gray-500">{groupPlayers.length}/4 players</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">{groupPlayers.length}/4 players</span>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete Group ${f.group_number}? Players will be unassigned.`)) return
+                        // Unassign players from this group
+                        if (groupPlayers.length > 0) {
+                          await supabase.from('players').update({ foursome_id: null, vegas_team: null }).eq('foursome_id', f.id)
+                        }
+                        await supabase.from('foursomes').delete().eq('id', f.id)
+                        setFoursomes(prev => prev.filter(x => x.id !== f.id))
+                        setPlayers(prev => prev.map(p => p.foursome_id === f.id ? { ...p, foursome_id: null, vegas_team: null } : p))
+                        flash(`Group ${f.group_number} deleted`)
+                      }}
+                      className="text-xs text-red-400"
+                    >Delete</button>
+                  </div>
                 </div>
 
                 <GroupSettings
