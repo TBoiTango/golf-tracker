@@ -72,7 +72,9 @@ export function formatVsPar(totalNet: number, totalPar: number): string {
 export function vegasHole(
   team1Net: [number, number],
   team2Net: [number, number],
-  par: number
+  par: number,
+  team1Gross?: [number, number],
+  team2Gross?: [number, number]
 ): { t1Number: number; t2Number: number; points: number; winner: 1 | 2 | 0; events: string[] } {
   const events: string[] = []
 
@@ -90,9 +92,11 @@ export function vegasHole(
   let t1Number = toVegas(team1Net)
   let t2Number = toVegas(team2Net)
 
-  // Birdie/eagle detection (best net score on the team vs par)
-  const t1Best = Math.min(...team1Net)
-  const t2Best = Math.min(...team2Net)
+  // Birdie/eagle detection uses GROSS scores — a handicap stroke doesn't count as a birdie
+  const t1Check = team1Gross ?? team1Net
+  const t2Check = team2Gross ?? team2Net
+  const t1Best = Math.min(...t1Check)
+  const t2Best = Math.min(...t2Check)
   const t1Eagle  = t1Best <= par - 2
   const t1Birdie = t1Best === par - 1
   const t2Eagle  = t2Best <= par - 2

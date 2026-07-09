@@ -123,7 +123,9 @@ export default function FoursomePage({ params }: Props) {
           const strokes = getStrokesForPlayer(p, minHcp)
           return (p.scores[hole] as number) - (strokes[hole] ?? 0)
         }) as [number, number]
-        const result = vegasHole(t1Net, t2Net, par)
+        const t1Gross = team1.map(p => p.scores[hole] as number) as [number, number]
+        const t2Gross = team2.map(p => p.scores[hole] as number) as [number, number]
+        const result = vegasHole(t1Net, t2Net, par, t1Gross, t2Gross)
         if (result.winner === 1) t1VegasPoints += result.points
         if (result.winner === 2) t2VegasPoints += result.points
         vegasRows.push({ hole, par, ...result })
