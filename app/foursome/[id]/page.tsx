@@ -190,7 +190,7 @@ export default function FoursomePage({ params }: Props) {
                   <div key={p.id}>
                     <p className="font-semibold text-sm">{p.name}</p>
                     <p className="text-xs text-gray-400">
-                      {holesPlayed > 0 ? `Thru ${holesPlayed} · Net ${formatVsPar(net, parPlayed)}` : 'Not started'}
+                      {holesPlayed > 0 ? `Thru ${holesPlayed}` : 'Not started'}
                     </p>
                     {gameType === 'vegas' && vegasStrokeHoles.length > 0 && (
                       <p className="text-xs text-yellow-500 mt-0.5">Strokes: {vegasStrokeHoles.join(', ')}</p>

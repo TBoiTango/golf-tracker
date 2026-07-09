@@ -118,7 +118,7 @@ export default function ScoreEntryPage({ params }: Props) {
 
         {currentGross && (
           <p className="text-center text-sm text-gray-400">
-            {scoreLabel(currentGross, par)} · Net {currentGross - strokes[currentHole]}
+            {scoreLabel(currentGross, par)}
           </p>
         )}
       </div>
@@ -128,7 +128,7 @@ export default function ScoreEntryPage({ params }: Props) {
         {Array.from({ length: 18 }, (_, i) => i + 1).map(h => {
           const gross = scores[h]
           const p2 = holePars[h - 1] ?? 4
-          const diff = gross !== undefined ? gross - p2 - strokes[h] : null
+          const diff = gross !== undefined ? gross - p2 : null
           return (
             <button
               key={h}
@@ -151,7 +151,7 @@ export default function ScoreEntryPage({ params }: Props) {
 
       {/* Summary */}
       {Object.keys(scores).length > 0 && (
-        <div className="bg-gray-900 rounded-xl p-4 grid grid-cols-3 gap-4 text-center">
+        <div className="bg-gray-900 rounded-xl p-4 grid grid-cols-2 gap-4 text-center">
           <div>
             <p className="text-gray-500 text-xs">Holes</p>
             <p className="text-xl font-bold">{Object.keys(scores).length}</p>
@@ -159,12 +159,6 @@ export default function ScoreEntryPage({ params }: Props) {
           <div>
             <p className="text-gray-500 text-xs">Gross</p>
             <p className="text-xl font-bold">{Object.values(scores).reduce((a, b) => a + b, 0)}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs">Net</p>
-            <p className="text-xl font-bold">
-              {Object.entries(scores).reduce((sum, [hole, gross]) => sum + gross - (strokes[parseInt(hole)] ?? 0), 0)}
-            </p>
           </div>
         </div>
       )}
