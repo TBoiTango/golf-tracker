@@ -180,12 +180,22 @@ export default function FoursomePage({ params }: Props) {
                 const holesPlayed = Object.keys(p.scores).length
                 const net = Object.entries(p.scores).reduce((sum, [hole, g]: any) => sum + g - (strokes[parseInt(hole)] ?? 0), 0)
                 const parPlayed = Object.keys(p.scores).reduce((sum, h) => sum + (holePars[parseInt(h) - 1] ?? 4), 0)
+                const allPlayers = [...team1, ...team2]
+                const minHcp = useHandicaps && allPlayers.length > 0 ? Math.min(...allPlayers.map(q => q.handicap_index)) : 0
+                const vegasStrokes = getStrokesForPlayer(p, minHcp)
+                const vegasStrokeHoles = Array.from({ length: 18 }, (_, i) => i + 1).filter(h => vegasStrokes[h] > 0)
                 return (
                   <div key={p.id}>
                     <p className="font-semibold text-sm">{p.name}</p>
                     <p className="text-xs text-gray-400">
                       {holesPlayed > 0 ? `Thru ${holesPlayed} · Net ${formatVsPar(net, parPlayed)}` : 'Not started'}
                     </p>
+                    {gameType === 'vegas' && vegasStrokeHoles.length > 0 && (
+                      <p className="text-xs text-yellow-500 mt-0.5">Strokes: {vegasStrokeHoles.join(', ')}</p>
+                    )}
+                    {gameType === 'vegas' && vegasStrokeHoles.length === 0 && useHandicaps && (
+                      <p className="text-xs text-gray-600 mt-0.5">No strokes (lowest hcp)</p>
+                    )}
                     <Link href={`/score/${p.id}`} className="text-xs text-green-400 underline">Enter scores</Link>
                   </div>
                 )

@@ -65,6 +65,7 @@ export default function ScoreEntryPage({ params }: Props) {
   if (!player) return <p className="text-center text-gray-400 mt-12">Loading...</p>
 
   const strokes = strokesPerHole(player.handicap_index, holeHandicaps, slope)
+  const strokeHoles = Array.from({ length: 18 }, (_, i) => i + 1).filter(h => strokes[h] > 0)
   const par = holePars[currentHole - 1] ?? 4
   const currentGross = scores[currentHole]
 
@@ -81,6 +82,11 @@ export default function ScoreEntryPage({ params }: Props) {
       <div>
         <h2 className="text-2xl font-bold">{player.name}</h2>
         <p className="text-gray-400 text-sm">Handicap {player.handicap_index}</p>
+        {strokeHoles.length > 0 && (
+          <p className="text-green-400 text-xs mt-1">
+            Stroke holes: {strokeHoles.join(', ')}
+          </p>
+        )}
       </div>
 
       {/* Current hole entry */}
