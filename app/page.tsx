@@ -271,7 +271,7 @@ export default function LeaderboardPage() {
                   const s = foursomeStats[f.id]
                   return (
                     <option key={f.id} value={f.group_number} disabled={s?.isFull}>
-                      Group {f.group_number} ({s?.playerCount ?? 0}/4){s?.isFull ? ' — FULL' : ''}
+                      Group {f.group_number} ({s?.playerCount ?? 0}/4){s?.isFull ? ' — FULL' : ''}{players.filter(p => p.foursome_id === f.id).length > 0 ? ': ' + players.filter(p => p.foursome_id === f.id).map(p => p.name).join(', ') : ''}
                     </option>
                   )
                 })}
