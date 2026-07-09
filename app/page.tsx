@@ -295,12 +295,15 @@ export default function LeaderboardPage() {
                     {[1, 2].map(t => {
                       const isFull = t === 1 ? team1Full : team2Full
                       const count = t === 1 ? selectedStats?.team1Count : selectedStats?.team2Count
+                      const teamPlayers = selectedFoursome
+                        ? players.filter(p => p.foursome_id === selectedFoursome.id && p.vegas_team === t)
+                        : []
                       return (
                         <button
                           key={t}
                           disabled={isFull}
                           onClick={() => setNewTeam(String(t))}
-                          className={`py-3 rounded-xl font-bold text-sm transition ${
+                          className={`py-3 px-3 rounded-xl font-bold text-sm transition text-left ${
                             newTeam === String(t) && !isFull
                               ? 'bg-green-700 text-white'
                               : isFull
@@ -308,7 +311,15 @@ export default function LeaderboardPage() {
                               : 'bg-gray-800 text-gray-300'
                           }`}
                         >
-                          Team {t} ({count ?? 0}/2){isFull ? ' — FULL' : ''}
+                          <p>Team {t} ({count ?? 0}/2){isFull ? ' — FULL' : ''}</p>
+                          {teamPlayers.length > 0 && (
+                            <p className={`text-xs font-normal mt-1 ${newTeam === String(t) && !isFull ? 'text-green-200' : 'text-gray-500'}`}>
+                              {teamPlayers.map(p => p.name).join(', ')}
+                            </p>
+                          )}
+                          {teamPlayers.length === 0 && (
+                            <p className="text-xs font-normal mt-1 text-gray-600">No one yet</p>
+                          )}
                         </button>
                       )
                     })}
