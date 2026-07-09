@@ -42,9 +42,8 @@ export function relativeStrokesPerHole(
   customHandicaps?: number[],
   slope?: number
 ): Record<number, number> {
-  const ch    = courseHandicap(handicapIndex, slope)
-  const minCh = courseHandicap(minHandicapIndex, slope)
-  const relativeCh = Math.max(0, ch - minCh)
+  // Simple method: raw index difference, no slope conversion
+  const relativeCh = Math.max(0, Math.round(handicapIndex - minHandicapIndex))
   const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
   const strokes: Record<number, number> = {}
   handicaps.forEach((hcp, i) => {

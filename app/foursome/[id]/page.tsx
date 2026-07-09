@@ -16,6 +16,7 @@ export default function FoursomePage({ params }: Props) {
   const [savingCtp, setSavingCtp] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
+  const [strokeOverrides, setStrokeOverrides] = useState<Record<string, number>>({})
 
   async function load() {
     const [{ data: fs }, { data: rawPlayers }] = await Promise.all([
@@ -88,6 +89,8 @@ export default function FoursomePage({ params }: Props) {
 
   function getStrokesForPlayer(p: any, minHcp: number): Record<number, number> {
     if (!useHandicaps) return strokesFromCount(p.manual_strokes ?? 0, holeHandicaps)
+    // If manual_strokes is explicitly set, use it as an override
+    if (p.manual_strokes != null) return strokesFromCount(p.manual_strokes, holeHandicaps)
     return relativeStrokesPerHole(p.handicap_index, minHcp, holeHandicaps, slope)
   }
 
@@ -206,6 +209,63 @@ export default function FoursomePage({ params }: Props) {
           )
         })}
       </div>
+
+      {/* Stroke summary + adjustment */}
+      {gameType === 'vegas' && useHandicaps && players.length > 0 && (
+        <div className="bg-gray-900 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm">Vegas Strokes</h3>
+            <p className="text-xs text-gray-500">Tap +/− to adjust</p>
+          </div>
+          {(() => {
+            const allP = [...team1, ...team2]
+            const minHcp = allP.length > 0 ? Math.min(...allP.map(p => p.handicap_index)) : 0
+            return allP.map(p => {
+              const calculated = Math.max(0, Math.round(p.handicap_index - minHcp))
+              const current = strokeOverrides[p.id] ?? (p.manual_strokes != null ? p.manual_strokes : calculated)
+              return (
+                <div key={p.id} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{p.name}</p>
+                    <p className="text-xs text-gray-500">Hcp {p.handicap_index} · calculated {calculated}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        const next = Math.max(0, current - 1)
+                        setStrokeOverrides(prev => ({ ...prev, [p.id]: next }))
+                        await supabase.from('players').update({ manual_strokes: next }).eq('id', p.id)
+                        setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, manual_strokes: next } : x))
+                      }}
+                      className="w-8 h-8 rounded-lg bg-gray-700 font-bold text-lg flex items-center justify-center"
+                    >−</button>
+                    <span className="w-6 text-center font-bold text-lg">{current}</span>
+                    <button
+                      onClick={async () => {
+                        const next = current + 1
+                        setStrokeOverrides(prev => ({ ...prev, [p.id]: next }))
+                        await supabase.from('players').update({ manual_strokes: next }).eq('id', p.id)
+                        setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, manual_strokes: next } : x))
+                      }}
+                      className="w-8 h-8 rounded-lg bg-gray-700 font-bold text-lg flex items-center justify-center"
+                    >+</button>
+                    {(strokeOverrides[p.id] != null || p.manual_strokes != null) && current !== calculated && (
+                      <button
+                        onClick={async () => {
+                          setStrokeOverrides(prev => { const n = { ...prev }; delete n[p.id]; return n })
+                          await supabase.from('players').update({ manual_strokes: null }).eq('id', p.id)
+                          setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, manual_strokes: null } : x))
+                        }}
+                        className="text-xs text-gray-500 underline"
+                      >reset</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          })()}
+        </div>
+      )}
 
       {/* Vegas scoreboard */}
       {gameType === 'vegas' && (
