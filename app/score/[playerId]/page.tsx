@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { strokesPerHole, scoreLabel, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
+import { strokesPerHole, relativeStrokesPerHole, strokesFromCount, scoreLabel, DEFAULT_PARS, DEFAULT_HANDICAPS } from '@/lib/scoring'
 
 interface Props { params: { playerId: string } }
 
@@ -17,6 +17,8 @@ export default function ScoreEntryPage({ params }: Props) {
   const [holePars, setHolePars] = useState(DEFAULT_PARS)
   const [holeHandicaps, setHoleHandicaps] = useState(DEFAULT_HANDICAPS)
   const [slope, setSlope] = useState(125)
+  const [groupGameType, setGroupGameType] = useState<string | null>(null)
+  const [groupPlayers, setGroupPlayers] = useState<any[]>([])
 
   useEffect(() => {
     async function load() {
@@ -29,10 +31,21 @@ export default function ScoreEntryPage({ params }: Props) {
       if (p.foursome_id) setFoursomeId(p.foursome_id)
 
       // Load course config from round
-      const { data: r } = await supabase.from('rounds').select('hole_pars, hole_handicaps, slope').eq('id', p.round_id).single()
+      const { data: r } = await supabase.from('rounds').select('hole_pars, hole_handicaps, slope, game_type').eq('id', p.round_id).single()
       if (r?.hole_pars)      setHolePars(r.hole_pars)
       if (r?.hole_handicaps) setHoleHandicaps(r.hole_handicaps)
       if (r?.slope)          setSlope(r.slope)
+
+      // Load group context for relative stroke calculation
+      if (p.foursome_id) {
+        const [{ data: fs }, { data: gp }] = await Promise.all([
+          supabase.from('foursomes').select('game_type, use_handicaps').eq('id', p.foursome_id).single(),
+          supabase.from('players').select('id, handicap_index, manual_strokes').eq('foursome_id', p.foursome_id),
+        ])
+        const gt = fs?.game_type ?? r?.game_type ?? 'vegas'
+        setGroupGameType(gt)
+        setGroupPlayers(gp ?? [])
+      }
 
       if (s) {
         const map: Record<number, number> = {}
@@ -64,7 +77,19 @@ export default function ScoreEntryPage({ params }: Props) {
 
   if (!player) return <p className="text-center text-gray-400 mt-12">Loading...</p>
 
-  const strokes = strokesPerHole(player.handicap_index, holeHandicaps, slope)
+  const isVegas = groupGameType === 'vegas'
+  const minHcp = isVegas && groupPlayers.length > 0
+    ? Math.min(...groupPlayers.map((p: any) => p.handicap_index))
+    : player.handicap_index
+
+  const strokes = isVegas
+    ? (() => {
+        const me = groupPlayers.find((p: any) => p.id === player.id)
+        if (me?.manual_strokes != null) return strokesFromCount(me.manual_strokes, holeHandicaps)
+        return relativeStrokesPerHole(player.handicap_index, minHcp, holeHandicaps)
+      })()
+    : strokesPerHole(player.handicap_index, holeHandicaps, slope)
+
   const strokeHoles = Array.from({ length: 18 }, (_, i) => i + 1).filter(h => strokes[h] > 0)
   const par = holePars[currentHole - 1] ?? 4
   const currentGross = scores[currentHole]
@@ -84,8 +109,11 @@ export default function ScoreEntryPage({ params }: Props) {
         <p className="text-gray-400 text-sm">Handicap {player.handicap_index}</p>
         {strokeHoles.length > 0 && (
           <p className="text-green-400 text-xs mt-1">
-            Stroke holes: {strokeHoles.join(', ')}
+            {isVegas ? 'Vegas stroke holes' : 'Stroke holes'}: {strokeHoles.join(', ')}
           </p>
+        )}
+        {isVegas && strokeHoles.length === 0 && groupPlayers.length > 1 && (
+          <p className="text-gray-500 text-xs mt-1">Lowest hcp in group — no Vegas strokes</p>
         )}
       </div>
 
