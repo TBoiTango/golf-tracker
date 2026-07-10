@@ -420,7 +420,10 @@ export default function LeaderboardPage() {
         <div>
           <h2 className="text-xl font-bold">Leaderboard</h2>
           <p className="text-xs text-gray-500">
-            {round.round_name} · {round.game_type} · ${round.stakes}/pt
+            {round.round_name} · {(() => {
+              const types = [...new Set(foursomes.map(f => f.game_type ?? round.game_type).filter(Boolean))]
+              return types.length === 1 ? types[0] : types.join(' / ')
+            })()} · ${round.stakes}/pt
           </p>
         </div>
         <Link href="/setup" className="text-xs text-green-400 underline">Setup</Link>
