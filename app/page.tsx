@@ -341,6 +341,7 @@ export default function LeaderboardPage() {
                     className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
                   >
                     <option value="vegas">🎰 Vegas</option>
+                    <option value="scramble">🤝 Scramble</option>
                     <option value="stroke">🏌️ Stroke Play</option>
                     <option value="none">⛳ No side game</option>
                   </select>
@@ -500,15 +501,17 @@ export default function LeaderboardPage() {
 
       <h2 className="text-lg font-bold">Foursomes</h2>
       <div className={`grid gap-3 ${foursomes.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-        {[...foursomes].sort((a, b) => a.group_number - b.group_number).map((f: any) => (
-          <Link key={f.id} href={`/foursome/${f.id}`} className="bg-gray-900 rounded-xl p-4 text-center hover:bg-gray-800 transition">
-            <p className="font-bold text-green-400">Group {f.group_number}</p>
-            <p className="text-xs text-gray-400 mt-1">{f.game_type ?? round.game_type ?? 'vegas'}</p>
-            <p className="text-xs text-gray-600 mt-0.5">
-              {players.filter(p => p.foursome_id === f.id).length}/4
-            </p>
-          </Link>
-        ))}
+        {[...foursomes].sort((a, b) => a.group_number - b.group_number).map((f: any) => {
+          const gt = f.game_type ?? round.game_type ?? 'vegas'
+          const groupPlayers = players.filter(p => p.foursome_id === f.id)
+          return (
+            <Link key={f.id} href={`/foursome/${f.id}`} className="bg-gray-900 rounded-xl p-4 text-center hover:bg-gray-800 transition">
+              <p className="font-bold text-green-400">Group {f.group_number}</p>
+              <p className="text-xs text-gray-400 mt-1">{gt}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{groupPlayers.length}/4</p>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )

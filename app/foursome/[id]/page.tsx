@@ -17,6 +17,8 @@ export default function FoursomePage({ params }: Props) {
   const [loading, setLoading] = useState(true)
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [strokeOverrides, setStrokeOverrides] = useState<Record<string, number>>({})
+  const [teamScores, setTeamScores] = useState<Record<string, number>>({}) // key: `${team}-${hole}`
+  const [savingTeamScore, setSavingTeamScore] = useState<string | null>(null)
 
   async function load() {
     const [{ data: fs }, { data: rawPlayers }] = await Promise.all([
@@ -30,10 +32,15 @@ export default function FoursomePage({ params }: Props) {
     setRound(r)
 
     const playerIds = rawPlayers.map((p: any) => p.id)
-    const [{ data: rawScores }, { data: ctpData }] = await Promise.all([
+    const [{ data: rawScores }, { data: ctpData }, { data: tsData }] = await Promise.all([
       supabase.from('scores').select('*').in('player_id', playerIds),
       supabase.from('ctp_results').select('*').eq('foursome_id', id),
+      supabase.from('team_scores').select('*').eq('foursome_id', id),
     ])
+
+    const tsMap: Record<string, number> = {}
+    ;(tsData ?? []).forEach((ts: any) => { tsMap[`${ts.team_number}-${ts.hole_number}`] = ts.gross_score })
+    setTeamScores(tsMap)
     const scores = (rawScores ?? []) as any[]
 
     const ctpMap: Record<number, number> = {}
@@ -55,6 +62,7 @@ export default function FoursomePage({ params }: Props) {
       .channel(`foursome-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ctp_results' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_scores' }, load)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [id])
@@ -73,6 +81,23 @@ export default function FoursomePage({ params }: Props) {
       setCtpResults(prev => ({ ...prev, [hole]: team }))
     }
     setSavingCtp(null)
+  }
+
+  async function saveTeamScore(team: number, hole: number, score: number) {
+    const key = `${team}-${hole}`
+    setSavingTeamScore(key)
+    const existing = teamScores[key]
+    if (existing === score) {
+      await supabase.from('team_scores').delete().eq('foursome_id', id).eq('team_number', team).eq('hole_number', hole)
+      setTeamScores(prev => { const n = { ...prev }; delete n[key]; return n })
+    } else {
+      await supabase.from('team_scores').upsert(
+        { foursome_id: id, team_number: team, hole_number: hole, gross_score: score },
+        { onConflict: 'foursome_id,team_number,hole_number' }
+      )
+      setTeamScores(prev => ({ ...prev, [key]: score }))
+    }
+    setSavingTeamScore(null)
   }
 
   if (loading) return <p className="text-center text-gray-400 mt-12">Loading...</p>
@@ -209,6 +234,87 @@ export default function FoursomePage({ params }: Props) {
           )
         })}
       </div>
+
+      {/* Scramble scorecard */}
+      {gameType === 'scramble' && (() => {
+        const is2v2 = team1.length > 0 && team2.length > 0
+        const teams = is2v2 ? [1, 2] : [1]
+        const totalPar = holePars.reduce((a, b) => a + b, 0)
+        const teamTotals = teams.map(t => ({
+          team: t,
+          total: Array.from({ length: 18 }, (_, i) => teamScores[`${t}-${i + 1}`] ?? 0).reduce((a, b) => a + b, 0),
+          holes: Array.from({ length: 18 }, (_, i) => teamScores[`${t}-${i + 1}`]).filter(Boolean).length,
+        }))
+        const parPlayed = (h: number) => holePars.slice(0, h).reduce((a, b) => a + b, 0)
+        const scrambleWinner = is2v2
+          ? (teamTotals[0].total < teamTotals[1].total && teamTotals[0].holes > 0 ? 1
+            : teamTotals[1].total < teamTotals[0].total && teamTotals[1].holes > 0 ? 2 : 0)
+          : 0
+
+        return (
+          <div className="space-y-4">
+            {is2v2 && (
+              <div className="grid grid-cols-2 gap-3">
+                {teamTotals.map(({ team, total, holes }) => {
+                  const pp = parPlayed(holes)
+                  const diff = total - pp
+                  return (
+                    <div key={team} className={`rounded-xl p-4 text-center ${scrambleWinner === team ? 'bg-green-900' : 'bg-gray-900'}`}>
+                      <p className="text-xs text-gray-400 uppercase mb-1">Team {team}</p>
+                      <p className="text-2xl font-bold">{total > 0 ? total : '—'}</p>
+                      {holes > 0 && <p className={`text-sm font-semibold ${diff < 0 ? 'text-red-400' : diff === 0 ? 'text-gray-300' : 'text-blue-400'}`}>{diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff} · Thru {holes}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="bg-gray-900 rounded-xl overflow-hidden">
+              <div className={`grid px-4 py-2 text-xs text-gray-500 uppercase border-b border-gray-800 ${is2v2 ? 'grid-cols-[2.5rem_1fr_1fr]' : 'grid-cols-[2.5rem_1fr]'}`}>
+                <span>Hole</span>
+                {is2v2 ? <><span className="text-center">Team 1</span><span className="text-center">Team 2</span></> : <span className="text-center">Score</span>}
+              </div>
+              {Array.from({ length: 18 }, (_, i) => {
+                const hole = i + 1
+                const par = holePars[i] ?? 4
+                return (
+                  <div key={hole} className={`border-b border-gray-800 last:border-0 ${i === 8 ? 'border-b-2 border-green-900' : ''}`}>
+                    <div className={`grid px-4 py-1 items-center text-xs text-gray-500 ${is2v2 ? 'grid-cols-[2.5rem_1fr_1fr]' : 'grid-cols-[2.5rem_1fr]'}`}>
+                      <span className="font-bold text-gray-400">{hole}<span className="text-gray-600 ml-1">p{par}</span></span>
+                      {teams.map(t => {
+                        const key = `${t}-${hole}`
+                        const current = teamScores[key]
+                        const scoreOptions = Array.from({ length: 7 }, (_, j) => par - 1 + j).filter(s => s > 0)
+                        return (
+                          <div key={t} className="flex gap-1 justify-center py-1.5">
+                            {scoreOptions.map(s => (
+                              <button
+                                key={s}
+                                onClick={() => saveTeamScore(t, hole, s)}
+                                disabled={savingTeamScore === key}
+                                className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
+                                  current === s ? (s < par ? 'bg-red-600 text-white' : s === par ? 'bg-gray-500 text-white' : 'bg-blue-800 text-white')
+                                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                }`}
+                              >{s}</button>
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {is2v2 && scrambleWinner > 0 && (
+              <div className="bg-green-900 rounded-xl px-4 py-3 text-center">
+                <p className="text-green-300 font-bold">Team {scrambleWinner} wins! 🏆</p>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Stroke summary + adjustment */}
       {gameType === 'vegas' && useHandicaps && players.length > 0 && (

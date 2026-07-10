@@ -25,6 +25,7 @@ function GroupSettings({ foursome, roundStakes, onSave }: {
             className="w-full bg-gray-800 rounded-lg px-2 py-2 text-sm">
             <option value="">Round default</option>
             <option value="vegas">Vegas</option>
+            <option value="scramble">Scramble</option>
             <option value="stroke">Stroke Play</option>
             <option value="none">No game</option>
           </select>
@@ -302,6 +303,7 @@ export default function SetupPage() {
                 <select value={gameType} onChange={e => setGameType(e.target.value)}
                   className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm">
                   <option value="vegas">Vegas</option>
+                  <option value="scramble">Scramble</option>
                   <option value="skins">Skins</option>
                   <option value="stroke">Stroke Play</option>
                 </select>
