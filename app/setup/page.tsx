@@ -492,21 +492,46 @@ export default function SetupPage() {
                   ))}
                 </div>
 
-                {/* Manual strokes when handicaps are off */}
-                {f.use_handicaps === false && groupPlayers.map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
-                    <p className="text-sm font-semibold">{p.name}</p>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">Strokes</label>
-                      <input
-                        type="number" min="0" max="18"
-                        defaultValue={p.manual_strokes ?? 0}
-                        onBlur={e => savePlayer(p.id, { manual_strokes: parseInt(e.target.value) || 0 })}
-                        className="w-16 bg-gray-700 rounded-lg px-2 py-1 text-sm text-center"
-                      />
-                    </div>
+                {/* Stroke overrides — shown when handicaps off (manual), or when handicaps on + vegas (adjustable) */}
+                {groupPlayers.length > 0 && (f.use_handicaps === false || (f.use_handicaps !== false && (f.game_type ?? round?.game_type) === 'vegas')) && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      {f.use_handicaps === false ? 'Manual Strokes' : 'Vegas Stroke Overrides'}
+                    </p>
+                    {groupPlayers.map(p => {
+                      const minHcp = Math.min(...groupPlayers.map(x => x.handicap_index))
+                      const calculated = f.use_handicaps === false ? null : Math.max(0, Math.round(p.handicap_index - minHcp))
+                      return (
+                        <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                          <div>
+                            <p className="text-sm font-semibold">{p.name}</p>
+                            {calculated != null && (
+                              <p className="text-xs text-gray-500">Hcp {p.handicap_index} · calculated {calculated}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500">Strokes</label>
+                            <input
+                              type="number" min="0" max="18"
+                              defaultValue={p.manual_strokes ?? calculated ?? 0}
+                              onBlur={async e => {
+                                const val = e.target.value === '' ? null : parseInt(e.target.value)
+                                await savePlayer(p.id, { manual_strokes: val })
+                              }}
+                              className="w-16 bg-gray-700 rounded-lg px-2 py-1 text-sm text-center"
+                            />
+                            {calculated != null && p.manual_strokes != null && (
+                              <button
+                                onClick={() => savePlayer(p.id, { manual_strokes: null })}
+                                className="text-xs text-gray-500 underline"
+                              >reset</button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                ))}
+                )}
 
                 {groupPlayers.filter(p => !p.vegas_team).map(p => (
                   <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
