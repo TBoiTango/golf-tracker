@@ -421,7 +421,7 @@ export default function LeaderboardPage() {
           <h2 className="text-xl font-bold">Leaderboard</h2>
           <p className="text-xs text-gray-500">
             {round.round_name} · {(() => {
-              const types = [...new Set(foursomes.map(f => f.game_type ?? round.game_type).filter(Boolean))]
+              const types = Array.from(new Set(foursomes.map(f => f.game_type ?? round.game_type).filter(Boolean)))
               return types.length === 1 ? types[0] : types.join(' / ')
             })()} · ${round.stakes}/pt
           </p>
