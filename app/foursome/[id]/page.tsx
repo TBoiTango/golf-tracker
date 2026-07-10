@@ -316,7 +316,7 @@ export default function FoursomePage({ params }: Props) {
         )
       })()}
 
-      {/* Stroke summary + adjustment */}
+      {/* Stroke summary + adjustment — Vegas only */}
       {gameType === 'vegas' && useHandicaps && players.length > 0 && (
         <div className="bg-gray-900 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">

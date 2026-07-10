@@ -107,7 +107,7 @@ export default function ScoreEntryPage({ params }: Props) {
       <div>
         <h2 className="text-2xl font-bold">{player.name}</h2>
         <p className="text-gray-400 text-sm">Handicap {player.handicap_index}</p>
-        {strokeHoles.length > 0 && (
+        {groupGameType !== 'scramble' && strokeHoles.length > 0 && (
           <p className="text-green-400 text-xs mt-1">
             {isVegas ? 'Vegas stroke holes' : 'Stroke holes'}: {strokeHoles.join(', ')}
           </p>

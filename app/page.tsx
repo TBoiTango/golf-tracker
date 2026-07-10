@@ -52,6 +52,7 @@ export default function LeaderboardPage() {
   const [players, setPlayers] = useState<any[]>([])
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null)
   const [showNet, setShowNet] = useState(false)
+  const [teamScores, setTeamScores] = useState<any[]>([])
 
   // Registration fields
   const [newName, setNewName] = useState('')
@@ -85,12 +86,19 @@ export default function LeaderboardPage() {
       supabase.from('foursomes').select('*').eq('round_id', r.id),
     ])
     const playerIds = (ps ?? []).map((p: any) => p.id)
-    const { data: scores } = playerIds.length
-      ? await supabase.from('scores').select('*').in('player_id', playerIds)
-      : { data: [] }
+    const foursomeIds = (fs ?? []).map((f: any) => f.id)
+    const [{ data: scores }, { data: teamScores }] = await Promise.all([
+      playerIds.length
+        ? supabase.from('scores').select('*').in('player_id', playerIds)
+        : Promise.resolve({ data: [] }),
+      foursomeIds.length
+        ? supabase.from('team_scores').select('*').in('foursome_id', foursomeIds)
+        : Promise.resolve({ data: [] }),
+    ])
 
     setPlayers(ps ?? [])
     setFoursomes(fs ?? [])
+    setTeamScores(teamScores ?? [])
     setRows(buildLeaderboard(ps ?? [], scores ?? [], fs ?? [], holePars, holeHandicaps))
     setLoading(false)
   }
@@ -101,6 +109,7 @@ export default function LeaderboardPage() {
       .channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_scores' }, load)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -464,40 +473,105 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      <div className="bg-gray-900 rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-2 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-800">
-          <span>#</span><span>Player</span>
-          <span className="text-right">Thru</span>
-          <span className="text-right">{showNet ? 'Net' : 'Gross'}</span>
-          <span className="text-right">+/-</span>
-        </div>
-        {[...rows]
-          .sort((a, b) => {
-            if (a.holesPlayed === 0 && b.holesPlayed === 0) return 0
-            if (a.holesPlayed === 0) return 1
-            if (b.holesPlayed === 0) return -1
-            return showNet ? a.netVsPar - b.netVsPar : a.grossTotal - b.grossTotal
+      {(() => {
+        // Separate scramble groups from individual players
+        const scrambleFoursomeIds = new Set(
+          foursomes.filter(f => (f.game_type ?? round.game_type) === 'scramble').map(f => f.id)
+        )
+        const nonScrambleRows = [...rows].filter(r => !scrambleFoursomeIds.has(r.player.foursome_id))
+        const sortedRows = nonScrambleRows.sort((a, b) => {
+          if (a.holesPlayed === 0 && b.holesPlayed === 0) return 0
+          if (a.holesPlayed === 0) return 1
+          if (b.holesPlayed === 0) return -1
+          return showNet ? a.netVsPar - b.netVsPar : a.grossTotal - b.grossTotal
+        })
+
+        // Build scramble team rows
+        const scrambleTeamRows: any[] = []
+        foursomes.filter(f => scrambleFoursomeIds.has(f.id)).sort((a,b) => a.group_number - b.group_number).forEach(f => {
+          const holePars = round.hole_pars ?? DEFAULT_PARS
+          ;[1, 2].forEach(team => {
+            const ts = teamScores.filter(s => s.foursome_id === f.id && s.team_number === team)
+            const holesPlayed = ts.length
+            const gross = ts.reduce((sum, s) => sum + s.gross_score, 0)
+            const parPlayed = ts.reduce((sum, s) => sum + (holePars[s.hole_number - 1] ?? 4), 0)
+            const teamPlayers = players.filter(p => p.foursome_id === f.id && p.vegas_team === team)
+            scrambleTeamRows.push({ foursomeId: f.id, groupNum: f.group_number, team, holesPlayed, gross, vsPar: gross - parPlayed, teamPlayers })
           })
-          .map((row: any, i: number) => (
-          <div
-            key={row.player.id}
-            className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0 ${i === 0 && row.holesPlayed > 0 ? 'bg-yellow-950' : ''} ${row.player.id === myPlayerId ? 'ring-1 ring-inset ring-green-700' : ''}`}
-          >
-            <span className="text-gray-500 text-sm self-center">{row.holesPlayed > 0 ? i + 1 : '-'}</span>
-            <div className="self-center">
-              <p className="font-semibold text-sm">{row.player.name} {row.player.id === myPlayerId ? '👤' : ''}</p>
-              <p className="text-xs text-gray-500">Grp {row.foursome?.group_number ?? '?'} · Hcp {row.player.handicap_index}</p>
+        })
+        scrambleTeamRows.sort((a, b) => {
+          if (a.holesPlayed === 0 && b.holesPlayed === 0) return 0
+          if (a.holesPlayed === 0) return 1
+          if (b.holesPlayed === 0) return -1
+          return a.gross - b.gross
+        })
+
+        const allDisplayRows = [
+          ...sortedRows.map(r => ({ type: 'player', data: r })),
+          ...scrambleTeamRows.map(r => ({ type: 'scramble', data: r })),
+        ]
+
+        return (
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-2 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-800">
+              <span>#</span><span>Player</span>
+              <span className="text-right">Thru</span>
+              <span className="text-right">{showNet ? 'Net' : 'Gross'}</span>
+              <span className="text-right">+/-</span>
             </div>
-            <span className="text-right text-sm self-center text-gray-400">
-              {row.holesPlayed === 18 ? 'F' : row.holesPlayed === 0 ? '-' : row.holesPlayed}
-            </span>
-            <span className="text-right text-sm self-center">{row.holesPlayed > 0 ? (showNet ? row.netTotal : row.grossTotal) : '-'}</span>
-            <span className="text-right self-center text-sm">
-              {row.holesPlayed > 0 ? <VsParBadge diff={showNet ? row.netVsPar : row.grossVsPar} /> : '-'}
-            </span>
+            {allDisplayRows.map((item, i) => {
+              if (item.type === 'player') {
+                const row = item.data
+                return (
+                  <div
+                    key={row.player.id}
+                    className={`grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0 ${i === 0 && row.holesPlayed > 0 ? 'bg-yellow-950' : ''} ${row.player.id === myPlayerId ? 'ring-1 ring-inset ring-green-700' : ''}`}
+                  >
+                    <span className="text-gray-500 text-sm self-center">{row.holesPlayed > 0 ? i + 1 : '-'}</span>
+                    <div className="self-center">
+                      <p className="font-semibold text-sm">{row.player.name} {row.player.id === myPlayerId ? '👤' : ''}</p>
+                      <p className="text-xs text-gray-500">Grp {row.foursome?.group_number ?? '?'} · Hcp {row.player.handicap_index}</p>
+                    </div>
+                    <span className="text-right text-sm self-center text-gray-400">
+                      {row.holesPlayed === 18 ? 'F' : row.holesPlayed === 0 ? '-' : row.holesPlayed}
+                    </span>
+                    <span className="text-right text-sm self-center">{row.holesPlayed > 0 ? (showNet ? row.netTotal : row.grossTotal) : '-'}</span>
+                    <span className="text-right self-center text-sm">
+                      {row.holesPlayed > 0 ? <VsParBadge diff={showNet ? row.netVsPar : row.grossVsPar} /> : '-'}
+                    </span>
+                  </div>
+                )
+              } else {
+                const row = item.data
+                return (
+                  <div
+                    key={`scramble-${row.foursomeId}-t${row.team}`}
+                    className="grid grid-cols-[2rem_1fr_3rem_3rem_3rem] gap-x-2 px-4 py-3 border-b border-gray-800 last:border-0"
+                  >
+                    <span className="text-gray-500 text-sm self-center">{row.holesPlayed > 0 ? i + 1 : '-'}</span>
+                    <div className="self-center">
+                      <p className="font-semibold text-sm">
+                        Grp {row.groupNum} · Team {row.team}
+                        <span className="ml-1 text-xs font-normal text-purple-400">scramble</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {row.teamPlayers.map((p: any) => p.name).join(', ') || 'No players'}
+                      </p>
+                    </div>
+                    <span className="text-right text-sm self-center text-gray-400">
+                      {row.holesPlayed === 18 ? 'F' : row.holesPlayed === 0 ? '-' : row.holesPlayed}
+                    </span>
+                    <span className="text-right text-sm self-center">{row.holesPlayed > 0 ? row.gross : '-'}</span>
+                    <span className="text-right self-center text-sm">
+                      {row.holesPlayed > 0 ? <VsParBadge diff={row.vsPar} /> : '-'}
+                    </span>
+                  </div>
+                )
+              }
+            })}
           </div>
-        ))}
-      </div>
+        )
+      })()}
 
       <h2 className="text-lg font-bold">Foursomes</h2>
       <div className={`grid gap-3 ${foursomes.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
