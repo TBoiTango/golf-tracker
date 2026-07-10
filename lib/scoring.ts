@@ -12,7 +12,7 @@ export function strokesPerHole(
   customHandicaps?: number[],
   slope?: number
 ): Record<number, number> {
-  const ch = courseHandicap(handicapIndex, slope)
+  const ch = Math.round(handicapIndex)
   const handicaps = customHandicaps ?? HOLES.map(h => h.handicap)
   const strokes: Record<number, number> = {}
   handicaps.forEach((hcp, i) => {
