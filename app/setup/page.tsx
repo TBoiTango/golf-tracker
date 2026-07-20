@@ -26,6 +26,8 @@ function GroupSettings({ foursome, roundStakes, onSave }: {
             <option value="">Round default</option>
             <option value="vegas">Vegas</option>
             <option value="scramble">Scramble</option>
+            <option value="skins_gross">Skins (Gross)</option>
+            <option value="skins_net">Skins (Net)</option>
             <option value="stroke">Stroke Play</option>
             <option value="none">No game</option>
           </select>
@@ -304,7 +306,8 @@ export default function SetupPage() {
                   className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm">
                   <option value="vegas">Vegas</option>
                   <option value="scramble">Scramble</option>
-                  <option value="skins">Skins</option>
+                  <option value="skins_gross">Skins (Gross)</option>
+                  <option value="skins_net">Skins (Net)</option>
                   <option value="stroke">Stroke Play</option>
                 </select>
               </div>

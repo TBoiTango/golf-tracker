@@ -106,6 +106,8 @@ export default function FoursomePage({ params }: Props) {
   const holePars      = round?.hole_pars      ?? DEFAULT_PARS
   const holeHandicaps = round?.hole_handicaps ?? DEFAULT_HANDICAPS
   const gameType      = foursome.game_type    ?? round?.game_type ?? 'vegas'
+  const isSkins       = gameType === 'skins_gross' || gameType === 'skins_net'
+  const skinsUseNet   = gameType === 'skins_net'
   const stakes        = foursome.stakes       ?? round?.stakes    ?? 1
   const ctpStakes     = foursome.ctp_stakes   ?? 1
   const useHandicaps  = foursome.use_handicaps !== false
@@ -161,6 +163,44 @@ export default function FoursomePage({ params }: Props) {
     }
   }
 
+  // Skins calculation
+  const skinsRows: { hole: number; par: number; winner: any | null; tied: boolean; pot: number; scores: { player: any; gross: number; net: number; stroke: number }[] }[] = []
+  const skinsCounts: Record<string, number> = {}
+  if (isSkins) {
+    let carryover = 0
+    for (let i = 0; i < 18; i++) {
+      const hole = i + 1
+      const par = holePars[i] ?? 4
+      const allHaveScores = players.every(p => p.scores[hole] !== undefined)
+      if (!allHaveScores) {
+        skinsRows.push({ hole, par, winner: null, tied: false, pot: 1 + carryover, scores: [] })
+        continue
+      }
+      const holeScores = players.map(p => {
+        const strokes = skinsUseNet ? strokesPerHole(p.handicap_index, holeHandicaps)[hole] ?? 0 : 0
+        const gross = p.scores[hole] as number
+        return { player: p, gross, net: gross - strokes, stroke: strokes }
+      })
+      const competing = holeScores.map(s => skinsUseNet ? s.net : s.gross)
+      const best = Math.min(...competing)
+      const winners = holeScores.filter((_, j) => competing[j] === best)
+      const pot = 1 + carryover
+      if (winners.length === 1) {
+        const w = winners[0]
+        skinsCounts[w.player.id] = (skinsCounts[w.player.id] ?? 0) + pot
+        skinsRows.push({ hole, par, winner: w.player, tied: false, pot, scores: holeScores })
+        carryover = 0
+      } else {
+        skinsRows.push({ hole, par, winner: null, tied: true, pot, scores: holeScores })
+        carryover = pot
+      }
+    }
+  }
+  const totalSkinsPlayed = skinsRows.filter(r => r.winner || r.tied).length
+  const remainingCarryover = skinsRows.length > 0
+    ? (skinsRows[skinsRows.length - 1].tied ? skinsRows[skinsRows.length - 1].pot : 0)
+    : 0
+
   // CTP calculation
   const par3Holes = holePars.map((p, i) => p === 3 ? i + 1 : null).filter(Boolean) as number[]
   const t1CtpWins = par3Holes.filter(h => ctpResults[h] === 1).length
@@ -185,7 +225,7 @@ export default function FoursomePage({ params }: Props) {
         <Link href="/" className="text-gray-400 text-sm">← Leaderboard</Link>
         <h2 className="text-xl font-bold">Group {foursome.group_number}</h2>
         <span className="text-xs text-gray-500 ml-auto">
-          {gameType === 'vegas' ? '🎰 Vegas' : gameType === 'stroke' ? '🏌️ Stroke' : '⛳ No game'}
+          {gameType === 'vegas' ? '🎰 Vegas' : gameType === 'scramble' ? '🤝 Scramble' : gameType === 'skins_gross' ? '🏆 Skins (Gross)' : gameType === 'skins_net' ? '🏆 Skins (Net)' : gameType === 'stroke' ? '🏌️ Stroke' : '⛳ No game'}
           {' · '}{useHandicaps ? 'Handicap' : 'Straight up'}
         </span>
       </div>
@@ -315,6 +355,75 @@ export default function FoursomePage({ params }: Props) {
           </div>
         )
       })()}
+
+      {/* Skins scoreboard */}
+      {isSkins && (
+        <div className="space-y-4">
+          {/* Skins tally per player */}
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${players.length}, 1fr)` }}>
+            {players.map(p => {
+              const skins = skinsCounts[p.id] ?? 0
+              return (
+                <div key={p.id} className={`rounded-xl p-3 text-center ${skins > 0 ? 'bg-yellow-900' : 'bg-gray-900'}`}>
+                  <p className="text-xs text-gray-400 truncate">{p.name}</p>
+                  <p className="text-2xl font-bold">{skins}</p>
+                  <p className="text-xs text-gray-500">{skins === 1 ? 'skin' : 'skins'}</p>
+                  <p className="text-xs text-green-400 font-semibold mt-1">${(skins * stakes).toFixed(0)}</p>
+                </div>
+              )
+            })}
+          </div>
+
+          {remainingCarryover > 0 && (
+            <div className="bg-orange-900 rounded-xl px-4 py-3 text-center">
+              <p className="text-orange-300 font-bold text-sm">🔥 {remainingCarryover} skin{remainingCarryover > 1 ? 's' : ''} carrying over — next clean winner takes ${remainingCarryover * stakes}</p>
+            </div>
+          )}
+
+          {/* Hole-by-hole table */}
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <div className={`grid px-4 py-2 text-xs text-gray-500 uppercase border-b border-gray-800`}
+              style={{ gridTemplateColumns: `2.5rem 1fr ${players.map(() => '3rem').join(' ')} 4rem` }}>
+              <span>H</span>
+              <span>Par</span>
+              {players.map(p => <span key={p.id} className="text-center truncate">{p.name.split(' ')[0]}</span>)}
+              <span className="text-right">Skin</span>
+            </div>
+            {skinsRows.filter(r => r.scores.length > 0).map(r => (
+              <div key={r.hole}
+                className={`grid px-4 py-2.5 border-b border-gray-800 last:border-0 items-center text-sm ${r.winner ? 'bg-yellow-950' : r.tied ? 'bg-gray-800' : ''}`}
+                style={{ gridTemplateColumns: `2.5rem 1fr ${players.map(() => '3rem').join(' ')} 4rem` }}>
+                <span className="text-gray-500 font-semibold">{r.hole}</span>
+                <span className="text-gray-500 text-xs">p{r.par}</span>
+                {players.map(p => {
+                  const s = r.scores.find((x: any) => x.player.id === p.id)
+                  if (!s) return <span key={p.id} className="text-center text-gray-600">–</span>
+                  const score = skinsUseNet ? s.net : s.gross
+                  const isWinner = r.winner?.id === p.id
+                  const isBest = score === Math.min(...r.scores.map((x: any) => skinsUseNet ? x.net : x.gross))
+                  return (
+                    <span key={p.id} className={`text-center font-mono font-bold ${isWinner ? 'text-yellow-300' : isBest && r.tied ? 'text-orange-400' : 'text-gray-400'}`}>
+                      {s.gross}{s.stroke > 0 && <sup className="text-green-500 text-[9px]">*</sup>}
+                    </span>
+                  )
+                })}
+                <span className="text-right text-xs">
+                  {r.winner
+                    ? <span className="text-yellow-400 font-bold">{r.winner.name.split(' ')[0]} {r.pot > 1 ? `(${r.pot})` : ''}</span>
+                    : r.tied
+                    ? <span className="text-orange-400">carry</span>
+                    : ''}
+                </span>
+              </div>
+            ))}
+            {skinsRows.filter(r => r.scores.length === 0).length > 0 && (
+              <p className="text-center text-gray-500 py-3 text-xs">
+                {skinsRows.filter(r => r.scores.length === 0).length} holes pending
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stroke summary + adjustment — Vegas only */}
       {gameType === 'vegas' && useHandicaps && players.length > 0 && (
@@ -474,38 +583,61 @@ export default function FoursomePage({ params }: Props) {
       )}
 
       {/* Payout Summary */}
-      <div>
-        <h3 className="font-bold text-lg mb-3">Payout Summary</h3>
-        <div className="bg-gray-900 rounded-xl overflow-hidden">
-          <div className="grid grid-cols-3 px-4 py-2 text-xs text-gray-500 uppercase border-b border-gray-800">
-            <span></span><span className="text-center">Team 1</span><span className="text-center">Team 2</span>
+      {isSkins ? (
+        <div>
+          <h3 className="font-bold text-lg mb-3">Payout Summary</h3>
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            {players.map((p, i) => {
+              const skins = skinsCounts[p.id] ?? 0
+              const money = skins * stakes
+              const maxSkins = Math.max(...players.map(x => skinsCounts[x.id] ?? 0))
+              return (
+                <div key={p.id} className={`grid grid-cols-[1fr_4rem_4rem] px-4 py-3 border-b border-gray-800 last:border-0 text-sm ${skins === maxSkins && skins > 0 ? 'bg-yellow-950' : ''}`}>
+                  <span className="font-semibold">{p.name}</span>
+                  <span className="text-center text-gray-400">{skins} skin{skins !== 1 ? 's' : ''}</span>
+                  <span className={`text-right font-bold ${money > 0 ? 'text-green-400' : 'text-gray-500'}`}>${money.toFixed(0)}</span>
+                </div>
+              )
+            })}
           </div>
-          {gameType === 'vegas' && (
-            <div className="grid grid-cols-3 px-4 py-3 border-b border-gray-800 text-sm">
-              <span className="text-gray-400">Vegas</span>
-              <span className={`text-center font-semibold ${vegasWinner === 1 ? 'text-green-400' : 'text-gray-300'}`}>${t1VegasMoney.toFixed(2)}</span>
-              <span className={`text-center font-semibold ${vegasWinner === 2 ? 'text-green-400' : 'text-gray-300'}`}>${t2VegasMoney.toFixed(2)}</span>
-            </div>
+          {remainingCarryover > 0 && (
+            <p className="text-xs text-orange-400 text-center mt-2">${remainingCarryover * stakes} unclaimed — carried over to next hole</p>
           )}
-          {par3Holes.length > 0 && (
-            <div className="grid grid-cols-3 px-4 py-3 border-b border-gray-800 text-sm">
-              <span className="text-gray-400">CTP</span>
-              <span className={`text-center font-semibold ${t1CtpMoney > t2CtpMoney ? 'text-green-400' : 'text-gray-300'}`}>${t1CtpMoney.toFixed(2)}</span>
-              <span className={`text-center font-semibold ${t2CtpMoney > t1CtpMoney ? 'text-green-400' : 'text-gray-300'}`}>${t2CtpMoney.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="grid grid-cols-3 px-4 py-4 text-base font-bold">
-            <span>Total</span>
-            <span className={`text-center ${overallWinner === 1 ? 'text-green-400' : 'text-gray-200'}`}>${t1Total.toFixed(2)}</span>
-            <span className={`text-center ${overallWinner === 2 ? 'text-green-400' : 'text-gray-200'}`}>${t2Total.toFixed(2)}</span>
-          </div>
         </div>
-        {overallWinner > 0 && (
-          <div className="mt-3 bg-green-900 rounded-xl px-4 py-3 text-center">
-            <p className="text-green-300 font-bold">Team {overallWinner} wins ${Math.abs(t1Total - t2Total).toFixed(2)} 💰</p>
+      ) : (
+        <div>
+          <h3 className="font-bold text-lg mb-3">Payout Summary</h3>
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-3 px-4 py-2 text-xs text-gray-500 uppercase border-b border-gray-800">
+              <span></span><span className="text-center">Team 1</span><span className="text-center">Team 2</span>
+            </div>
+            {gameType === 'vegas' && (
+              <div className="grid grid-cols-3 px-4 py-3 border-b border-gray-800 text-sm">
+                <span className="text-gray-400">Vegas</span>
+                <span className={`text-center font-semibold ${vegasWinner === 1 ? 'text-green-400' : 'text-gray-300'}`}>${t1VegasMoney.toFixed(2)}</span>
+                <span className={`text-center font-semibold ${vegasWinner === 2 ? 'text-green-400' : 'text-gray-300'}`}>${t2VegasMoney.toFixed(2)}</span>
+              </div>
+            )}
+            {par3Holes.length > 0 && (
+              <div className="grid grid-cols-3 px-4 py-3 border-b border-gray-800 text-sm">
+                <span className="text-gray-400">CTP</span>
+                <span className={`text-center font-semibold ${t1CtpMoney > t2CtpMoney ? 'text-green-400' : 'text-gray-300'}`}>${t1CtpMoney.toFixed(2)}</span>
+                <span className={`text-center font-semibold ${t2CtpMoney > t1CtpMoney ? 'text-green-400' : 'text-gray-300'}`}>${t2CtpMoney.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="grid grid-cols-3 px-4 py-4 text-base font-bold">
+              <span>Total</span>
+              <span className={`text-center ${overallWinner === 1 ? 'text-green-400' : 'text-gray-200'}`}>${t1Total.toFixed(2)}</span>
+              <span className={`text-center ${overallWinner === 2 ? 'text-green-400' : 'text-gray-200'}`}>${t2Total.toFixed(2)}</span>
+            </div>
           </div>
-        )}
-      </div>
+          {overallWinner > 0 && (
+            <div className="mt-3 bg-green-900 rounded-xl px-4 py-3 text-center">
+              <p className="text-green-300 font-bold">Team {overallWinner} wins ${Math.abs(t1Total - t2Total).toFixed(2)} 💰</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

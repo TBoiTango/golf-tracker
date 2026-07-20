@@ -341,7 +341,7 @@ export default function LeaderboardPage() {
                 <label className="text-xs text-gray-500 block mb-1">Game</label>
                 {lockedGameType ? (
                   <div className="bg-gray-800 rounded-lg px-4 py-3 text-sm text-gray-300">
-                    {lockedGameType === 'vegas' ? '🎰 Vegas' : lockedGameType === 'stroke' ? '🏌️ Stroke Play' : '⛳ None'} — set by your group
+                    {lockedGameType === 'vegas' ? '🎰 Vegas' : lockedGameType === 'scramble' ? '🤝 Scramble' : lockedGameType === 'skins_gross' ? '🏆 Skins (Gross)' : lockedGameType === 'skins_net' ? '🏆 Skins (Net)' : lockedGameType === 'stroke' ? '🏌️ Stroke Play' : '⛳ None'} — set by your group
                   </div>
                 ) : (
                   <select
@@ -352,6 +352,8 @@ export default function LeaderboardPage() {
                     <option value="">Select game...</option>
                     <option value="vegas">🎰 Vegas</option>
                     <option value="scramble">🤝 Scramble</option>
+                    <option value="skins_gross">🏆 Skins (Gross)</option>
+                    <option value="skins_net">🏆 Skins (Net)</option>
                     <option value="stroke">🏌️ Stroke Play</option>
                     <option value="none">⛳ No side game</option>
                   </select>
