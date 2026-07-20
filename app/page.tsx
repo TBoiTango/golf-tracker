@@ -59,7 +59,7 @@ export default function LeaderboardPage() {
   const [newHandicap, setNewHandicap] = useState('0')
   const [newGroup, setNewGroup] = useState('')
   const [newTeam, setNewTeam] = useState('1')
-  const [newGameType, setNewGameType] = useState('vegas')
+  const [newGameType, setNewGameType] = useState('')
   const [newStakes, setNewStakes] = useState('1')
   const [newCtpStakes, setNewCtpStakes] = useState('1')
   const [registering, setRegistering] = useState(false)
@@ -349,6 +349,7 @@ export default function LeaderboardPage() {
                     onChange={e => setNewGameType(e.target.value)}
                     className="w-full bg-gray-800 rounded-lg px-3 py-3 text-white"
                   >
+                    <option value="">Select game...</option>
                     <option value="vegas">🎰 Vegas</option>
                     <option value="scramble">🤝 Scramble</option>
                     <option value="stroke">🏌️ Stroke Play</option>
@@ -403,7 +404,7 @@ export default function LeaderboardPage() {
 
           <button
             onClick={registerPlayer}
-            disabled={!newName.trim() || !newGroup || registering || groupFull}
+            disabled={!newName.trim() || !newGroup || registering || groupFull || (isFirstInGroup && !newGameType)}
             className="w-full bg-green-700 rounded-xl py-3 font-bold disabled:opacity-50"
           >
             {registering ? 'Adding...' : "I'm In — Add Me"}
