@@ -152,15 +152,19 @@ export default function LeaderboardPage() {
       return
     }
 
-    // Team balance check
+    // Team balance check — Vegas only (other games aren't team-based)
     const teamNum = parseInt(newTeam)
-    if (teamNum === 1 && t1Count >= 2) {
-      setRegError('Team 1 is full in this group. Choose Team 2.')
-      return
-    }
-    if (teamNum === 2 && t2Count >= 2) {
-      setRegError('Team 2 is full in this group. Choose Team 1.')
-      return
+    const lockedType = selectedFoursome.game_type ?? round.game_type
+    const effectiveType = groupPlayers.length === 0 ? newGameType : lockedType
+    if (effectiveType === 'vegas') {
+      if (teamNum === 1 && t1Count >= 2) {
+        setRegError('Team 1 is full in this group. Choose Team 2.')
+        return
+      }
+      if (teamNum === 2 && t2Count >= 2) {
+        setRegError('Team 2 is full in this group. Choose Team 1.')
+        return
+      }
     }
 
     setRegistering(true)

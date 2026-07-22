@@ -197,9 +197,8 @@ export default function FoursomePage({ params }: Props) {
     }
   }
   const totalSkinsPlayed = skinsRows.filter(r => r.winner || r.tied).length
-  const remainingCarryover = skinsRows.length > 0
-    ? (skinsRows[skinsRows.length - 1].tied ? skinsRows[skinsRows.length - 1].pot : 0)
-    : 0
+  const lastPlayedRow = [...skinsRows].reverse().find(r => r.scores.length > 0)
+  const remainingCarryover = lastPlayedRow?.tied ? lastPlayedRow.pot : 0
 
   // CTP calculation
   const par3Holes = holePars.map((p, i) => p === 3 ? i + 1 : null).filter(Boolean) as number[]
@@ -237,7 +236,30 @@ export default function FoursomePage({ params }: Props) {
         </div>
       )}
 
+      {/* Player cards — skins (individual game) */}
+      {isSkins && (
+        <div className="grid grid-cols-2 gap-3">
+          {players.map(p => {
+            const holesPlayed = Object.keys(p.scores).length
+            const skinStrokeHoles = skinsUseNet
+              ? Array.from({ length: 18 }, (_, i) => i + 1).filter(h => (strokesPerHole(p.handicap_index, holeHandicaps)[h] ?? 0) > 0)
+              : []
+            return (
+              <div key={p.id} className="rounded-xl p-4 bg-gray-900 space-y-1">
+                <p className="font-semibold text-sm">{p.name}</p>
+                <p className="text-xs text-gray-400">{holesPlayed > 0 ? `Thru ${holesPlayed}` : 'Not started'}</p>
+                {skinsUseNet && skinStrokeHoles.length > 0 && (
+                  <p className="text-xs text-yellow-500">Strokes: {skinStrokeHoles.join(', ')}</p>
+                )}
+                <Link href={`/score/${p.id}`} className="text-xs text-green-400 underline">Enter scores</Link>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Team cards */}
+      {!isSkins && (
       <div className="grid grid-cols-2 gap-3">
         {[team1, team2].map((team, ti) => {
           const teamNum = ti + 1
@@ -274,6 +296,7 @@ export default function FoursomePage({ params }: Props) {
           )
         })}
       </div>
+      )}
 
       {/* Scramble scorecard */}
       {gameType === 'scramble' && (() => {
@@ -532,8 +555,8 @@ export default function FoursomePage({ params }: Props) {
         </div>
       )}
 
-      {/* Closest to the Pin */}
-      {par3Holes.length > 0 && (
+      {/* Closest to the Pin — team-based, not shown for individual skins */}
+      {par3Holes.length > 0 && !isSkins && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg">Closest to the Pin</h3>
